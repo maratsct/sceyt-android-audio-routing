@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
  * Events are processed sequentially via a Channel to prevent race conditions.
  */
 internal class AudioRoutingStateMachine(
-    private val scope: CoroutineScope,
+    scope: CoroutineScope,
     private val config: AudioRouterConfig,
     private val logger: Logger,
     private val onStateChanged: suspend (AudioRoutingState, AudioRoutingState) -> Unit
@@ -72,6 +72,7 @@ internal class AudioRoutingStateMachine(
             is AudioRoutingEvent.ClearManualSelection -> handleClearManualSelection(oldState)
             is AudioRoutingEvent.UpdatePreferredOrder -> handleUpdatePreferredOrder(oldState, event.order)
             is AudioRoutingEvent.EnumerateDevices -> handleEnumerateDevices(oldState)
+            is AudioRoutingEvent.InitializeDevices -> handleInitializeDevices(oldState, event.devices, event.selectedDevice)
         }
 
         if (newState != oldState) {
@@ -303,6 +304,25 @@ internal class AudioRoutingStateMachine(
         // This is triggered by external device detection
         // The actual device list update happens via specific connect/disconnect events
         return state
+    }
+
+    private fun handleInitializeDevices(
+        state: AudioRoutingState,
+        devices: List<AudioDevice>,
+        selectedDevice: AudioDevice?
+    ): AudioRoutingState {
+        if (!state.isListening) return state
+
+        // Determine wired headset status from device list
+        val hasWiredHeadset = devices.any { it is AudioDevice.WiredHeadset }
+        val bluetoothDevice = devices.filterIsInstance<AudioDevice.BluetoothHeadset>().firstOrNull()
+
+        return state.copy(
+            availableDevices = devices,
+            selectedDevice = selectedDevice,
+            wiredHeadsetConnected = hasWiredHeadset,
+            activeBluetoothDevice = bluetoothDevice
+        )
     }
 
     /**

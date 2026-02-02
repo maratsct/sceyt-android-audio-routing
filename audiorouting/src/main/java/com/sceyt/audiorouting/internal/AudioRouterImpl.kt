@@ -24,7 +24,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlin.reflect.KClass
 
 /**
@@ -207,9 +206,7 @@ internal class AudioRouterImpl(
         logger.d("Deactivating AudioRouter")
 
         // Stop Bluetooth SCO if active
-        scope.launch {
-            bluetoothHandler.deactivate()
-        }
+        bluetoothHandler.deactivate()
 
         // Restore audio state
         audioDeviceManager.restoreAudioState()
@@ -273,19 +270,17 @@ internal class AudioRouterImpl(
 
         // Sort by priority
         val sortedDevices = devices.sortedBy { priorityManager.getPriority(it) }
-        _availableDevices.value = sortedDevices
 
         // Select best device
         val selected = priorityManager.selectBestDevice(sortedDevices, null)
-        _selectedDevice.value = selected
 
         logger.d("Initialized devices: ${sortedDevices.map { it.name }}, selected: ${selected?.name}")
 
-        // Notify listener
-        listener?.onAudioDevicesChanged(sortedDevices, selected)
+        // Send to state machine to sync its internal state
+        stateMachine.sendEvent(AudioRoutingEvent.InitializeDevices(sortedDevices, selected))
     }
 
-    private suspend fun handleStateChanged(oldState: AudioRoutingState, newState: AudioRoutingState) {
+    private fun handleStateChanged(oldState: AudioRoutingState, newState: AudioRoutingState) {
         logger.d("State changed: ${oldState.routingState} -> ${newState.routingState}")
 
         // Update public state flows

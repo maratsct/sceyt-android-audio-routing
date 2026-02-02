@@ -33,16 +33,12 @@ internal class AudioDeviceManager(
      */
     @SuppressLint("NewApi")
     fun hasEarpiece(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT)) {
-                audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-                    it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
-                }
-            } else {
-                false
+        return if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT)) {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
             }
         } else {
-            context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+            false
         }
     }
 
@@ -51,16 +47,12 @@ internal class AudioDeviceManager(
      */
     @SuppressLint("NewApi")
     fun hasSpeakerphone(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT)) {
-                audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-                    it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
-                }
-            } else {
-                true // Assume speaker exists on older devices
+        return if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT)) {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
             }
         } else {
-            true
+            true // Assume speaker exists on older devices
         }
     }
 
@@ -201,17 +193,29 @@ internal class AudioDeviceManager(
 
     /**
      * Starts Bluetooth SCO audio connection.
+     * Note: We use startBluetoothSco() on all API levels because setCommunicationDevice
+     * requires the BT SCO device to already be in the available list, which only happens
+     * after SCO is established.
      */
     @SuppressLint("NewApi")
     fun startBluetoothSco() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Android 14+: Use setCommunicationDevice
-            setCommunicationDevice(AudioDeviceInfo.TYPE_BLUETOOTH_SCO, true)
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.startBluetoothSco()
+        // First try the new API on Android 12+ if the device is available
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val scoDevice = audioManager.availableCommunicationDevices
+                .firstOrNull { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+            if (scoDevice != null) {
+                val success = audioManager.setCommunicationDevice(scoDevice)
+                logger.d("setCommunicationDevice(BT_SCO) result: $success")
+                if (success) {
+                    return
+                }
+            }
         }
-        logger.d("Bluetooth SCO start requested")
+
+        // Fall back to legacy API
+        @Suppress("DEPRECATION")
+        audioManager.startBluetoothSco()
+        logger.d("Bluetooth SCO start requested (legacy API)")
     }
 
     /**
@@ -219,16 +223,18 @@ internal class AudioDeviceManager(
      */
     @SuppressLint("NewApi")
     fun stopBluetoothSco() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Android 14+: Clear communication device if it's BT SCO
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Clear communication device if it's BT SCO
             val currentDevice = audioManager.communicationDevice
             if (currentDevice?.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
                 audioManager.clearCommunicationDevice()
+                logger.d("Cleared BT SCO communication device")
             }
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.stopBluetoothSco()
         }
+
+        // Always call stopBluetoothSco for cleanup
+        @Suppress("DEPRECATION")
+        audioManager.stopBluetoothSco()
         logger.d("Bluetooth SCO stop requested")
     }
 
@@ -244,16 +250,19 @@ internal class AudioDeviceManager(
                 enableSpeakerphone(false)
                 startBluetoothSco()
             }
+
             is AudioDevice.WiredHeadset -> {
                 enableSpeakerphone(false)
                 stopBluetoothSco()
                 // Wired headset is automatically used when connected
             }
+
             is AudioDevice.Earpiece -> {
                 enableSpeakerphone(false)
                 stopBluetoothSco()
                 enableEarpiece(true)
             }
+
             is AudioDevice.Speakerphone -> {
                 stopBluetoothSco()
                 enableSpeakerphone(true)

@@ -1,6 +1,7 @@
 package com.sceyt.audiorouting.internal.bluetooth
 
 import android.bluetooth.BluetoothHeadset
+import android.bluetooth.BluetoothProfile
 
 /**
  * Tracks the state of Bluetooth headset connections.
@@ -37,23 +38,26 @@ internal class BluetoothStateTracker {
 
     /**
      * Updates the state based on Bluetooth headset connection state.
+     * Uses BluetoothProfile constants: DISCONNECTED=0, CONNECTING=1, CONNECTED=2, DISCONNECTING=3
      */
     fun onConnectionStateChanged(state: Int) {
         _headsetState = when (state) {
-            BluetoothHeadset.STATE_CONNECTED -> {
+            BluetoothProfile.STATE_CONNECTED -> {
+                // Transition to Connected if not already in a connected state
                 if (_headsetState == HeadsetState.Disconnected) {
                     HeadsetState.Connected
                 } else {
                     _headsetState
                 }
             }
-            BluetoothHeadset.STATE_DISCONNECTED -> HeadsetState.Disconnected
-            else -> _headsetState
+            BluetoothProfile.STATE_DISCONNECTED -> HeadsetState.Disconnected
+            else -> _headsetState // CONNECTING, DISCONNECTING - keep current state
         }
     }
 
     /**
      * Updates the state based on Bluetooth audio connection state.
+     * Uses BluetoothHeadset audio state constants.
      */
     fun onAudioStateChanged(state: Int) {
         _headsetState = when (state) {

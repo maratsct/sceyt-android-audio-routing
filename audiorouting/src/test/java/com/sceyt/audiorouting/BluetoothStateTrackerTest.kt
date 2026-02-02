@@ -1,6 +1,7 @@
 package com.sceyt.audiorouting
 
 import android.bluetooth.BluetoothHeadset
+import android.bluetooth.BluetoothProfile
 import com.sceyt.audiorouting.internal.bluetooth.BluetoothStateTracker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,7 +27,7 @@ class BluetoothStateTrackerTest {
 
     @Test
     fun `onConnectionStateChanged with STATE_CONNECTED transitions to Connected`() {
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
 
         assertEquals(BluetoothStateTracker.HeadsetState.Connected, tracker.headsetState)
         assertTrue(tracker.isConnected)
@@ -35,8 +36,8 @@ class BluetoothStateTrackerTest {
 
     @Test
     fun `onConnectionStateChanged with STATE_DISCONNECTED transitions to Disconnected`() {
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_DISCONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_DISCONNECTED)
 
         assertEquals(BluetoothStateTracker.HeadsetState.Disconnected, tracker.headsetState)
         assertFalse(tracker.isConnected)
@@ -44,7 +45,7 @@ class BluetoothStateTrackerTest {
 
     @Test
     fun `onAudioStateChanged with STATE_AUDIO_CONNECTED transitions to AudioActivated`() {
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
         tracker.onAudioStateChanged(BluetoothHeadset.STATE_AUDIO_CONNECTED)
 
         assertEquals(BluetoothStateTracker.HeadsetState.AudioActivated, tracker.headsetState)
@@ -54,7 +55,7 @@ class BluetoothStateTrackerTest {
 
     @Test
     fun `onAudioStateChanged with STATE_AUDIO_DISCONNECTED transitions back to Connected`() {
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
         tracker.onAudioStateChanged(BluetoothHeadset.STATE_AUDIO_CONNECTED)
         tracker.onAudioStateChanged(BluetoothHeadset.STATE_AUDIO_DISCONNECTED)
 
@@ -65,7 +66,7 @@ class BluetoothStateTrackerTest {
 
     @Test
     fun `setAudioActivating transitions to AudioActivating when connected`() {
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
         tracker.setAudioActivating()
 
         assertEquals(BluetoothStateTracker.HeadsetState.AudioActivating, tracker.headsetState)
@@ -80,7 +81,7 @@ class BluetoothStateTrackerTest {
 
     @Test
     fun `setAudioActivationError sets error state`() {
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
         tracker.setAudioActivationError("Timeout")
 
         assertTrue(tracker.headsetState is BluetoothStateTracker.HeadsetState.AudioActivationError)
@@ -91,7 +92,7 @@ class BluetoothStateTrackerTest {
     fun `hasActivationError returns true only for error state`() {
         assertFalse(tracker.hasActivationError())
 
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
         assertFalse(tracker.hasActivationError())
 
         tracker.setAudioActivationError("Error")
@@ -100,7 +101,7 @@ class BluetoothStateTrackerTest {
 
     @Test
     fun `reset returns to disconnected state`() {
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
         tracker.onAudioStateChanged(BluetoothHeadset.STATE_AUDIO_CONNECTED)
         tracker.reset()
 
@@ -111,7 +112,7 @@ class BluetoothStateTrackerTest {
 
     @Test
     fun `isConnected returns true for all connected states`() {
-        tracker.onConnectionStateChanged(BluetoothHeadset.STATE_CONNECTED)
+        tracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
         assertTrue(tracker.isConnected)
 
         tracker.setAudioActivating()

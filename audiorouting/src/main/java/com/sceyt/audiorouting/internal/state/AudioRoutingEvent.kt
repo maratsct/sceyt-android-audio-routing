@@ -41,4 +41,12 @@ internal sealed class AudioRoutingEvent {
 
     // Internal events
     object EnumerateDevices : AudioRoutingEvent()
+    
+    /**
+     * Initialize with discovered devices. Called once at startup.
+     */
+    data class InitializeDevices(
+        val devices: List<AudioDevice>,
+        val selectedDevice: AudioDevice?
+    ) : AudioRoutingEvent()
 }

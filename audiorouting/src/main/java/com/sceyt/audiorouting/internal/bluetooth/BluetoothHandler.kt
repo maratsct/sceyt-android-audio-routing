@@ -45,7 +45,7 @@ internal class BluetoothHandler(
     private var isStarted = false
 
     val stateTracker = BluetoothStateTracker()
-    lateinit var scoManager: BluetoothScoManager
+    var scoManager: BluetoothScoManager? = null
         private set
 
     private val profileListener = object : BluetoothProfile.ServiceListener {
@@ -59,6 +59,8 @@ internal class BluetoothHandler(
                 if (hasBluetoothPermission()) {
                     proxy.connectedDevices.forEach { device ->
                         logger.d("Found connected Bluetooth device: ${device.name}")
+                        // Update state tracker BEFORE notifying callback
+                        stateTracker.onConnectionStateChanged(BluetoothProfile.STATE_CONNECTED)
                         handleDeviceConnected(device)
                     }
                 }
@@ -128,12 +130,13 @@ internal class BluetoothHandler(
     fun stop() {
         if (!isStarted) return
 
-        scoManager.cancelPendingOperations()
+        scoManager?.cancelPendingOperations()
         unregisterReceivers()
 
         bluetoothAdapter?.closeProfileProxy(BluetoothProfile.HEADSET, headsetProxy)
         headsetProxy = null
         stateTracker.reset()
+        scoManager = null
 
         isStarted = false
         logger.d("BluetoothHandler stopped")
@@ -143,6 +146,13 @@ internal class BluetoothHandler(
      * Activates Bluetooth audio (starts SCO).
      */
     fun activate(onResult: (BluetoothScoManager.ScoResult) -> Unit) {
+        val manager = scoManager
+        if (manager == null) {
+            logger.w("Cannot activate Bluetooth - not started")
+            onResult(BluetoothScoManager.ScoResult.Failed("Bluetooth not started", 0))
+            return
+        }
+        
         if (!stateTracker.isConnected) {
             logger.w("Cannot activate Bluetooth - no device connected")
             onResult(BluetoothScoManager.ScoResult.Failed("No device connected", 0))
@@ -150,14 +160,14 @@ internal class BluetoothHandler(
         }
 
         stateTracker.setAudioActivating()
-        scoManager.startScoAsync(onResult)
+        manager.startScoAsync(onResult)
     }
 
     /**
      * Deactivates Bluetooth audio (stops SCO).
      */
-    suspend fun deactivate() {
-        scoManager.disableSco()
+    fun deactivate() {
+        scoManager?.disableSco()
     }
 
     /**
@@ -235,14 +245,23 @@ internal class BluetoothHandler(
         if (device == null || !isHeadsetDevice(device)) return
         if (!hasBluetoothPermission()) return
 
-        logger.d("Bluetooth connection state changed: device=${device.name}, state=$state")
+        // BluetoothProfile states: DISCONNECTED=0, CONNECTING=1, CONNECTED=2, DISCONNECTING=3
+        val stateName = when (state) {
+            BluetoothProfile.STATE_DISCONNECTED -> "DISCONNECTED"
+            BluetoothProfile.STATE_CONNECTING -> "CONNECTING"
+            BluetoothProfile.STATE_CONNECTED -> "CONNECTED"
+            BluetoothProfile.STATE_DISCONNECTING -> "DISCONNECTING"
+            else -> "UNKNOWN($state)"
+        }
+        logger.d("Bluetooth connection state changed: device=${device.name}, state=$stateName")
+
+        // Update state tracker BEFORE notifying callbacks
+        stateTracker.onConnectionStateChanged(state)
 
         when (state) {
-            BluetoothHeadset.STATE_CONNECTED -> handleDeviceConnected(device)
-            BluetoothHeadset.STATE_DISCONNECTED -> handleDeviceDisconnected(device)
+            BluetoothProfile.STATE_CONNECTED -> handleDeviceConnected(device)
+            BluetoothProfile.STATE_DISCONNECTED -> handleDeviceDisconnected(device)
         }
-
-        stateTracker.onConnectionStateChanged(state)
     }
 
     @SuppressLint("MissingPermission")
@@ -268,7 +287,7 @@ internal class BluetoothHandler(
         )
 
         logger.d("SCO audio state changed: $state")
-        scoManager.onScoAudioStateChanged(state)
+        scoManager?.onScoAudioStateChanged(state)
         onScoStateChanged(state)
     }
 
