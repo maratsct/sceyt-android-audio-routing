@@ -36,7 +36,6 @@ import kotlin.reflect.KClass
  * router.selectDevice(device)
  *
  * // When call ends
- * router.deactivate()
  * router.stop()
  * ```
  */
