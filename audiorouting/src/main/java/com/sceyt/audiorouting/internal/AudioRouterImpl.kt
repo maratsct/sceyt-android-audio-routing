@@ -45,7 +45,7 @@ internal class AudioRouterImpl(
     private val _selectedDevice = MutableStateFlow<AudioDevice?>(null)
     override val selectedDevice: StateFlow<AudioDevice?> = _selectedDevice.asStateFlow()
 
-    private val _routingState = MutableStateFlow(RoutingState.STOPPED)
+    private val _routingState = MutableStateFlow(RoutingState.IDLE)
     override val routingState: StateFlow<RoutingState> = _routingState.asStateFlow()
 
     private val _isManualSelection = MutableStateFlow(false)
@@ -113,7 +113,7 @@ internal class AudioRouterImpl(
     override fun start(listener: AudioRouterListener?) {
         this.listener = listener
 
-        if (_routingState.value != RoutingState.STOPPED) {
+        if (_routingState.value != RoutingState.IDLE) {
             logger.d("Already started, updating listener only")
             return
         }
@@ -143,7 +143,7 @@ internal class AudioRouterImpl(
     }
 
     override fun stop() {
-        if (_routingState.value == RoutingState.STOPPED) {
+        if (_routingState.value == RoutingState.IDLE) {
             logger.d("Already stopped")
             return
         }
@@ -166,7 +166,7 @@ internal class AudioRouterImpl(
     }
 
     override fun activate() {
-        if (_routingState.value == RoutingState.STOPPED) {
+        if (_routingState.value == RoutingState.IDLE) {
             logger.w("Cannot activate - router is stopped. Call start() first.")
             return
         }
@@ -245,6 +245,16 @@ internal class AudioRouterImpl(
 
     override fun setListener(listener: AudioRouterListener?) {
         this.listener = listener
+    }
+
+    override fun refreshDevices() {
+        if (_routingState.value == RoutingState.IDLE) {
+            logger.d("Cannot refresh devices - router is stopped")
+            return
+        }
+        
+        logger.d("Refreshing devices")
+        initializeDevices()
     }
 
     private fun initializeDevices() {
@@ -347,6 +357,7 @@ internal class AudioRouterImpl(
     /**
      * Cleans up resources. Call this when the router is no longer needed.
      */
+    @Suppress("unused")
     fun destroy() {
         stop()
         stateMachine.close()

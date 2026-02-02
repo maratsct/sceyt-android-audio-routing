@@ -85,7 +85,7 @@ interface AudioRouter {
      * This acquires audio focus and starts routing audio.
      * Call this when a call actually starts.
      *
-     * @throws IllegalStateException if called when state is STOPPED
+     * @throws IllegalStateException if called when state is IDLE
      */
     fun activate()
 
@@ -127,6 +127,15 @@ interface AudioRouter {
      * @param listener The listener to set, or null to remove.
      */
     fun setListener(listener: AudioRouterListener?)
+
+    /**
+     * Re-scans for available audio devices and updates the device list.
+     * Useful after permissions are granted or when you suspect the device
+     * list may be stale.
+     * 
+     * Does nothing if the router is stopped.
+     */
+    fun refreshDevices()
 
     companion object {
         /**

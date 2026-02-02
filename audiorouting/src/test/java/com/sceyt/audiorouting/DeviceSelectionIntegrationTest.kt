@@ -261,7 +261,7 @@ class DeviceSelectionIntegrationTest {
             stateMachine.sendEvent(AudioRoutingEvent.Stop)
 
             val state = stateMachine.state.value
-            assertEquals(RoutingState.STOPPED, state.routingState)
+            assertEquals(RoutingState.IDLE, state.routingState)
             assertFalse(state.isManualSelection)
             assertNull(state.selectedDevice)
             assertTrue(state.availableDevices.isEmpty())
@@ -299,13 +299,13 @@ class DeviceSelectionIntegrationTest {
         try {
             val btDevice = AudioDevice.BluetoothHeadset("BT Headset", "00:11:22:33:44:55")
 
-            // Don't start - in STOPPED state
+            // Don't start - in IDLE state
             stateMachine.sendEvent(AudioRoutingEvent.BluetoothDeviceConnected(btDevice))
             stateMachine.sendEvent(AudioRoutingEvent.WiredHeadsetConnected)
             stateMachine.sendEvent(AudioRoutingEvent.UserSelectDevice(btDevice))
 
             val state = stateMachine.state.value
-            assertEquals(RoutingState.STOPPED, state.routingState)
+            assertEquals(RoutingState.IDLE, state.routingState)
             assertTrue(state.availableDevices.isEmpty())
             assertNull(state.selectedDevice)
         } finally {

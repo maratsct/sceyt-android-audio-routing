@@ -7,7 +7,7 @@ import com.sceyt.audiorouting.RoutingState
  * Internal state representation for the audio routing state machine.
  */
 internal data class AudioRoutingState(
-    val routingState: RoutingState = RoutingState.STOPPED,
+    val routingState: RoutingState = RoutingState.IDLE,
     val availableDevices: List<AudioDevice> = emptyList(),
     val selectedDevice: AudioDevice? = null,
     val isManualSelection: Boolean = false,
@@ -19,7 +19,7 @@ internal data class AudioRoutingState(
      * Returns true if the router is in a state where device changes should be processed.
      */
     val isListening: Boolean
-        get() = routingState != RoutingState.STOPPED
+        get() = routingState != RoutingState.IDLE
 
     /**
      * Returns true if audio is actively being routed.
@@ -30,6 +30,7 @@ internal data class AudioRoutingState(
     /**
      * Returns true if Bluetooth SCO is connecting or connected.
      */
+    @Suppress("unused")
     val isBluetoothScoActive: Boolean
         get() = bluetoothScoState == BluetoothScoState.Connected ||
                 bluetoothScoState == BluetoothScoState.Connecting

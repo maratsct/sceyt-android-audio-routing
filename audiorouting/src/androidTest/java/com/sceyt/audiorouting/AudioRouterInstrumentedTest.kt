@@ -56,7 +56,7 @@ class AudioRouterInstrumentedTest {
 
     @Test
     fun initialState_isStopped() {
-        assertEquals(RoutingState.STOPPED, audioRouter.routingState.value)
+        assertEquals(RoutingState.IDLE, audioRouter.routingState.value)
     }
 
     @Test
@@ -72,7 +72,7 @@ class AudioRouterInstrumentedTest {
         delay(100)
         audioRouter.stop()
         delay(100)
-        assertEquals(RoutingState.STOPPED, audioRouter.routingState.value)
+        assertEquals(RoutingState.IDLE, audioRouter.routingState.value)
     }
 
     @Test
@@ -270,7 +270,7 @@ class AudioRouterInstrumentedTest {
     @Test
     fun routingState_emitsOnChange() = runTest {
         val initialState = audioRouter.routingState.value
-        assertEquals(RoutingState.STOPPED, initialState)
+        assertEquals(RoutingState.IDLE, initialState)
         
         audioRouter.start()
         
@@ -345,7 +345,7 @@ class AudioRouterInstrumentedTest {
             
             audioRouter.stop()
             delay(200)
-            assertEquals(RoutingState.STOPPED, audioRouter.routingState.value)
+            assertEquals(RoutingState.IDLE, audioRouter.routingState.value)
         }
     }
 

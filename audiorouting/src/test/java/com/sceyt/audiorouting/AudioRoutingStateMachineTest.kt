@@ -35,10 +35,10 @@ class AudioRoutingStateMachineTest {
     }
 
     @Test
-    fun `initial state is STOPPED`() {
+    fun `initial state is IDLE`() {
         val stateMachine = createStateMachine()
         try {
-            assertEquals(RoutingState.STOPPED, stateMachine.state.value.routingState)
+            assertEquals(RoutingState.IDLE, stateMachine.state.value.routingState)
         } finally {
             stateMachine.close()
         }
@@ -68,11 +68,11 @@ class AudioRoutingStateMachineTest {
     }
 
     @Test
-    fun `activate event does nothing when STOPPED`() {
+    fun `activate event does nothing when IDLE`() {
         val stateMachine = createStateMachine()
         try {
             stateMachine.sendEvent(AudioRoutingEvent.Activate)
-            assertEquals(RoutingState.STOPPED, stateMachine.state.value.routingState)
+            assertEquals(RoutingState.IDLE, stateMachine.state.value.routingState)
         } finally {
             stateMachine.close()
         }
@@ -92,14 +92,14 @@ class AudioRoutingStateMachineTest {
     }
 
     @Test
-    fun `stop event transitions to STOPPED and resets state`() {
+    fun `stop event transitions to IDLE and resets state`() {
         val stateMachine = createStateMachine()
         try {
             stateMachine.sendEvent(AudioRoutingEvent.Start)
             stateMachine.sendEvent(AudioRoutingEvent.Activate)
             stateMachine.sendEvent(AudioRoutingEvent.Stop)
 
-            assertEquals(RoutingState.STOPPED, stateMachine.state.value.routingState)
+            assertEquals(RoutingState.IDLE, stateMachine.state.value.routingState)
             assertTrue(stateMachine.state.value.availableDevices.isEmpty())
             assertNull(stateMachine.state.value.selectedDevice)
         } finally {
@@ -276,7 +276,7 @@ class AudioRoutingStateMachineTest {
 
             assertNotNull(lastOldState)
             assertNotNull(lastNewState)
-            assertEquals(RoutingState.STOPPED, lastOldState?.routingState)
+            assertEquals(RoutingState.IDLE, lastOldState?.routingState)
             assertEquals(RoutingState.STARTED, lastNewState?.routingState)
         } finally {
             stateMachine.close()
@@ -289,7 +289,7 @@ class AudioRoutingStateMachineTest {
         try {
             val btDevice = AudioDevice.BluetoothHeadset("BT Headset", "00:11:22:33:44:55")
 
-            // Don't start - should be in STOPPED state
+            // Don't start - should be in IDLE state
             stateMachine.sendEvent(AudioRoutingEvent.BluetoothDeviceConnected(btDevice))
 
             // Device should not be added when stopped

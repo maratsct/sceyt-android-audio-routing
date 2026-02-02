@@ -62,7 +62,7 @@ internal class AudioRoutingStateMachine(
             is AudioRoutingEvent.Activate -> handleActivate(oldState)
             is AudioRoutingEvent.Deactivate -> handleDeactivate(oldState)
             is AudioRoutingEvent.BluetoothDeviceConnected -> handleBluetoothConnected(oldState, event.device)
-            is AudioRoutingEvent.BluetoothDeviceDisconnected -> handleBluetoothDisconnected(oldState, event.device)
+            is AudioRoutingEvent.BluetoothDeviceDisconnected -> handleBluetoothDisconnected(oldState)
             is AudioRoutingEvent.WiredHeadsetConnected -> handleWiredHeadsetConnected(oldState)
             is AudioRoutingEvent.WiredHeadsetDisconnected -> handleWiredHeadsetDisconnected(oldState)
             is AudioRoutingEvent.BluetoothScoConnected -> handleScoConnected(oldState)
@@ -82,7 +82,7 @@ internal class AudioRoutingStateMachine(
     }
 
     private fun handleStart(state: AudioRoutingState): AudioRoutingState {
-        if (state.routingState != RoutingState.STOPPED) {
+        if (state.routingState != RoutingState.IDLE) {
             logger.d("Ignoring start() - already in state ${state.routingState}")
             return state
         }
@@ -90,7 +90,7 @@ internal class AudioRoutingStateMachine(
     }
 
     private fun handleStop(state: AudioRoutingState): AudioRoutingState {
-        if (state.routingState == RoutingState.STOPPED) {
+        if (state.routingState == RoutingState.IDLE) {
             logger.d("Ignoring stop() - already stopped")
             return state
         }
@@ -99,7 +99,7 @@ internal class AudioRoutingStateMachine(
 
     private fun handleActivate(state: AudioRoutingState): AudioRoutingState {
         return when (state.routingState) {
-            RoutingState.STOPPED -> {
+            RoutingState.IDLE -> {
                 logger.w("Cannot activate when stopped")
                 state
             }
@@ -146,8 +146,7 @@ internal class AudioRoutingStateMachine(
     }
 
     private fun handleBluetoothDisconnected(
-        state: AudioRoutingState,
-        device: AudioDevice.BluetoothHeadset
+        state: AudioRoutingState
     ): AudioRoutingState {
         if (!state.isListening) return state
 

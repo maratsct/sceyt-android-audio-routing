@@ -4,13 +4,13 @@ package com.sceyt.audiorouting
  * Represents an audio device that can be used for call audio routing.
  * This sealed class hierarchy defines all supported audio device types.
  */
-sealed class AudioDevice {
+sealed class AudioDevice(
     /** The display name of the audio device. */
-    abstract val name: String
-    
-    /** A unique identifier for this audio device. */
-    abstract val id: String
+    val name: String,
 
+    /** A unique identifier for this audio device. */
+    val id: String
+) {
     /**
      * Represents a Bluetooth headset device (HFP/HSP profile).
      *
@@ -19,13 +19,13 @@ sealed class AudioDevice {
      * @property address The Bluetooth MAC address of the device.
      */
     data class BluetoothHeadset(
-        override val name: String = "Bluetooth",
-        override val id: String = "bluetooth",
+        val deviceName: String = "Bluetooth",
+        val deviceId: String = "bluetooth",
         val address: String = ""
-    ) : AudioDevice() {
-        constructor(name: String, address: String) : this(
-            name = name,
-            id = "bluetooth_$address",
+    ) : AudioDevice(name = deviceName, id = deviceId) {
+        constructor(deviceName: String, address: String) : this(
+            deviceName = deviceName,
+            deviceId = "bluetooth_$address",
             address = address
         )
     }
@@ -34,23 +34,23 @@ sealed class AudioDevice {
      * Represents a wired headset (3.5mm jack or USB-C audio).
      */
     data class WiredHeadset(
-        override val name: String = "Wired Headset",
-        override val id: String = "wired_headset"
-    ) : AudioDevice()
+        val deviceName: String = "Wired Headset",
+        val deviceId: String = "wired_headset"
+    ) : AudioDevice(name = deviceName, id = deviceId)
 
     /**
      * Represents the device's built-in earpiece speaker.
      */
     data class Earpiece(
-        override val name: String = "Earpiece",
-        override val id: String = "earpiece"
-    ) : AudioDevice()
+        val deviceName: String = "Earpiece",
+        val deviceId: String = "earpiece"
+    ) : AudioDevice(name = deviceName, id = deviceId)
 
     /**
      * Represents the device's built-in speakerphone.
      */
     data class Speakerphone(
-        override val name: String = "Speakerphone",
-        override val id: String = "speakerphone"
-    ) : AudioDevice()
+        val deviceName: String = "Speakerphone",
+        val deviceId: String = "speakerphone"
+    ) : AudioDevice(name = deviceName, id = deviceId)
 }

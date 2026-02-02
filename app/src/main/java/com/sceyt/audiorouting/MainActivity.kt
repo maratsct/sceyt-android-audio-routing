@@ -48,6 +48,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,7 +57,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -79,9 +79,8 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            // Permission granted, restart the router
-            audioRouter.stop()
-            audioRouter.start()
+            // Permission granted, refresh devices to detect Bluetooth
+            audioRouter.refreshDevices()
         }
     }
 
@@ -148,6 +147,7 @@ class MainActivity : ComponentActivity() {
  * Plays melodic tones using AudioTrack for testing audio routing.
  * Generates a pleasant melody pattern using synthesized sine waves.
  */
+@Stable
 class MelodicSoundPlayer {
     private val sampleRate = 44100
     private var audioTrack: AudioTrack? = null
@@ -249,6 +249,7 @@ class MelodicSoundPlayer {
         stop()
     }
 
+    @Suppress("SameParameterValue")
     private fun generateNoteWithEnvelope(frequency: Double, durationMs: Int): ShortArray {
         val numSamples = (sampleRate * durationMs / 1000.0).toInt()
         val samples = ShortArray(numSamples)
@@ -273,9 +274,11 @@ class MelodicSoundPlayer {
                     val decayProgress = (i - attackSamples).toDouble() / decaySamples
                     1.0 - (0.3 * decayProgress) // Decay to 0.7
                 }
+
                 i < attackSamples + decaySamples + sustainSamples -> 0.7 // Sustain
                 else -> {
-                    val releaseProgress = (i - attackSamples - decaySamples - sustainSamples).toDouble() / releaseSamples
+                    val releaseProgress =
+                        (i - attackSamples - decaySamples - sustainSamples).toDouble() / releaseSamples
                     0.7 * (1.0 - releaseProgress) // Release
                 }
             }
@@ -516,9 +519,9 @@ fun StatusCard(
                 Text(
                     text = if (isManualSelection) "Manual (locked)" else "Automatic",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isManualSelection) 
-                        MaterialTheme.colorScheme.primary 
-                    else 
+                    color = if (isManualSelection)
+                        MaterialTheme.colorScheme.primary
+                    else
                         MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -577,7 +580,7 @@ fun SoundPlayingBadge() {
 @Composable
 fun StatusBadge(routingState: RoutingState) {
     val (text, color) = when (routingState) {
-        RoutingState.STOPPED -> "Stopped" to Color.Gray
+        RoutingState.IDLE -> "Idle" to Color.Gray
         RoutingState.STARTED -> "Started" to Color(0xFF2196F3)
         RoutingState.ACTIVATED -> "Activated" to Color(0xFF4CAF50)
     }

@@ -179,7 +179,7 @@ internal class BluetoothHandler(
 
         return headsetProxy?.connectedDevices?.firstOrNull()?.let { device ->
             AudioDevice.BluetoothHeadset(
-                name = device.name ?: "Bluetooth",
+                deviceName = device.name ?: "Bluetooth",
                 address = device.address
             )
         }
@@ -296,7 +296,7 @@ internal class BluetoothHandler(
         if (!hasBluetoothPermission()) return
 
         val audioDevice = AudioDevice.BluetoothHeadset(
-            name = device.name ?: "Bluetooth",
+            deviceName = device.name ?: "Bluetooth",
             address = device.address
         )
         onBluetoothDeviceConnected(audioDevice)
@@ -307,7 +307,7 @@ internal class BluetoothHandler(
         if (!hasBluetoothPermission()) return
 
         val audioDevice = AudioDevice.BluetoothHeadset(
-            name = device.name ?: "Bluetooth",
+            deviceName = device.name ?: "Bluetooth",
             address = device.address
         )
         onBluetoothDeviceDisconnected(audioDevice)

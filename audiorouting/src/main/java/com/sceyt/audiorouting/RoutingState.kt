@@ -5,10 +5,10 @@ package com.sceyt.audiorouting
  */
 enum class RoutingState {
     /**
-     * The router is stopped and not listening for device changes.
-     * This is the initial state.
+     * The router is idle and not listening for device changes.
+     * This is the initial state and the state after [AudioRouter.stop] is called.
      */
-    STOPPED,
+    IDLE,
 
     /**
      * The router is started and listening for device changes,
