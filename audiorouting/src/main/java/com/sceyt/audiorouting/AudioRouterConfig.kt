@@ -7,7 +7,7 @@ import kotlin.reflect.KClass
  *
  * @property preferredDeviceOrder The priority order for automatic device selection.
  *           Devices earlier in the list have higher priority.
- *           Default order: BluetoothHeadset > WiredHeadset > Earpiece > Speakerphone
+ *           Default order: HearingAid > BluetoothHeadset > BleHeadset > WiredHeadset > UsbHeadset > Earpiece > Speakerphone
  * @property loggingEnabled Whether to enable debug logging. Default is false.
  * @property scoRetryCount Number of times to retry Bluetooth SCO connection. Default is 3.
  * @property scoRetryDelayMs Delay between SCO retry attempts in milliseconds. Default is 500ms.
@@ -46,10 +46,16 @@ data class AudioRouterConfig(
     companion object {
         /**
          * Default device priority order for automatic selection.
+         * Hearing aids get highest priority for accessibility.
+         * Bluetooth devices (classic and LE) are preferred over wired.
+         * USB audio is treated similarly to wired headsets.
          */
         val defaultPreferredDeviceOrder: List<KClass<out AudioDevice>> = listOf(
+            AudioDevice.HearingAid::class,
             AudioDevice.BluetoothHeadset::class,
+            AudioDevice.BleHeadset::class,
             AudioDevice.WiredHeadset::class,
+            AudioDevice.UsbHeadset::class,
             AudioDevice.Earpiece::class,
             AudioDevice.Speakerphone::class
         )

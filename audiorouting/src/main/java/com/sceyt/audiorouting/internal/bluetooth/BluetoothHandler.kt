@@ -23,7 +23,11 @@ import com.sceyt.audiorouting.internal.device.AudioDeviceManager
 import kotlinx.coroutines.CoroutineScope
 
 /**
- * Handles Bluetooth headset (HFP/HSP) connection and audio routing.
+ * Handles Bluetooth headset (HFP/HSP profile) connection and audio routing.
+ * Manages SCO (Synchronous Connection-Oriented) links for real-time voice audio.
+ * 
+ * Note: BLE Audio and Hearing Aid devices are detected via AudioDeviceManager,
+ * not through this handler, as they use different connection mechanisms.
  */
 internal class BluetoothHandler(
     private val context: Context,

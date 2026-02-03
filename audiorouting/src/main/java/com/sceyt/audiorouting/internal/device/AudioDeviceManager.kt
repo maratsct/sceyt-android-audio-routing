@@ -57,6 +57,88 @@ internal class AudioDeviceManager(
     }
 
     /**
+     * Checks if a wired headset is connected.
+     */
+    @SuppressLint("NewApi")
+    fun hasWiredHeadset(): Boolean {
+        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+            it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+            it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+        }
+    }
+
+    /**
+     * Checks if a USB audio device is connected.
+     */
+    @SuppressLint("NewApi")
+    fun hasUsbAudio(): Boolean {
+        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+            it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+            it.type == AudioDeviceInfo.TYPE_USB_DEVICE
+        }
+    }
+
+    /**
+     * Checks if a BLE audio device is connected (Android 12+).
+     */
+    @SuppressLint("NewApi")
+    fun hasBleAudio(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+            it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+            it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+        }
+    }
+
+    /**
+     * Checks if a hearing aid is connected.
+     */
+    @SuppressLint("NewApi")
+    fun hasHearingAid(): Boolean {
+        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+            it.type == AudioDeviceInfo.TYPE_HEARING_AID
+        }
+    }
+
+    /**
+     * Gets all connected audio output devices with their types.
+     */
+    @SuppressLint("NewApi")
+    fun getConnectedDevices(): List<AudioDevice> {
+        val devices = mutableListOf<AudioDevice>()
+        
+        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).forEach { deviceInfo ->
+            when (deviceInfo.type) {
+                AudioDeviceInfo.TYPE_HEARING_AID -> {
+                    devices.add(AudioDevice.HearingAid(
+                        deviceName = deviceInfo.productName?.toString() ?: "Hearing Aid"
+                    ))
+                }
+                AudioDeviceInfo.TYPE_BLE_HEADSET,
+                AudioDeviceInfo.TYPE_BLE_SPEAKER -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        devices.add(AudioDevice.BleHeadset(
+                            deviceName = deviceInfo.productName?.toString() ?: "BLE Audio"
+                        ))
+                    }
+                }
+                AudioDeviceInfo.TYPE_USB_HEADSET,
+                AudioDeviceInfo.TYPE_USB_DEVICE -> {
+                    devices.add(AudioDevice.UsbHeadset(
+                        deviceName = deviceInfo.productName?.toString() ?: "USB Audio"
+                    ))
+                }
+                AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> {
+                    devices.add(AudioDevice.WiredHeadset())
+                }
+            }
+        }
+        
+        return devices.distinctBy { it.id }
+    }
+
+    /**
      * Caches the current audio state before modifying it.
      */
     @SuppressLint("NewApi")
@@ -251,10 +333,28 @@ internal class AudioDeviceManager(
                 startBluetoothSco()
             }
 
+            is AudioDevice.BleHeadset -> {
+                enableSpeakerphone(false)
+                stopBluetoothSco()
+                enableBleAudio(true)
+            }
+
+            is AudioDevice.HearingAid -> {
+                enableSpeakerphone(false)
+                stopBluetoothSco()
+                enableHearingAid(true)
+            }
+
             is AudioDevice.WiredHeadset -> {
                 enableSpeakerphone(false)
                 stopBluetoothSco()
                 // Wired headset is automatically used when connected
+            }
+
+            is AudioDevice.UsbHeadset -> {
+                enableSpeakerphone(false)
+                stopBluetoothSco()
+                enableUsbAudio(true)
             }
 
             is AudioDevice.Earpiece -> {
@@ -268,6 +368,67 @@ internal class AudioDeviceManager(
                 enableSpeakerphone(true)
             }
         }
+    }
+
+    /**
+     * Enables BLE Audio device routing (Android 13+).
+     */
+    @SuppressLint("NewApi")
+    private fun enableBleAudio(enable: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Try BLE headset first, then BLE speaker
+            val bleDevice = audioManager.availableCommunicationDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+            }
+            if (bleDevice != null && enable) {
+                val success = audioManager.setCommunicationDevice(bleDevice)
+                logger.d("setCommunicationDevice(BLE): $success")
+            } else if (!enable) {
+                val currentDevice = audioManager.communicationDevice
+                if (currentDevice?.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    currentDevice?.type == AudioDeviceInfo.TYPE_BLE_SPEAKER) {
+                    audioManager.clearCommunicationDevice()
+                }
+            }
+        }
+        logger.d("BLE Audio ${if (enable) "enabled" else "disabled"}")
+    }
+
+    /**
+     * Enables Hearing Aid device routing.
+     */
+    @SuppressLint("NewApi")
+    private fun enableHearingAid(enable: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            setCommunicationDevice(AudioDeviceInfo.TYPE_HEARING_AID, enable)
+        }
+        logger.d("Hearing Aid ${if (enable) "enabled" else "disabled"}")
+    }
+
+    /**
+     * Enables USB Audio device routing.
+     */
+    @SuppressLint("NewApi")
+    private fun enableUsbAudio(enable: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Try USB headset first, then generic USB device
+            val usbDevice = audioManager.availableCommunicationDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_USB_DEVICE
+            }
+            if (usbDevice != null && enable) {
+                val success = audioManager.setCommunicationDevice(usbDevice)
+                logger.d("setCommunicationDevice(USB): $success")
+            } else if (!enable) {
+                val currentDevice = audioManager.communicationDevice
+                if (currentDevice?.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+                    currentDevice?.type == AudioDeviceInfo.TYPE_USB_DEVICE) {
+                    audioManager.clearCommunicationDevice()
+                }
+            }
+        }
+        logger.d("USB Audio ${if (enable) "enabled" else "disabled"}")
     }
 
     /**

@@ -83,12 +83,90 @@ class AudioDeviceTest {
 
     @Test
     fun `custom names are preserved`() {
-        val wired = AudioDevice.WiredHeadset(name = "USB-C Headphones")
-        val earpiece = AudioDevice.Earpiece(name = "Phone Speaker")
-        val speaker = AudioDevice.Speakerphone(name = "Loud Speaker")
+        val wired = AudioDevice.WiredHeadset(deviceName = "USB-C Headphones")
+        val earpiece = AudioDevice.Earpiece(deviceName = "Phone Speaker")
+        val speaker = AudioDevice.Speakerphone(deviceName = "Loud Speaker")
 
         assertEquals("USB-C Headphones", wired.name)
         assertEquals("Phone Speaker", earpiece.name)
         assertEquals("Loud Speaker", speaker.name)
+    }
+
+    // ==================== BLE Headset Tests ====================
+
+    @Test
+    fun `BleHeadset with address has correct id`() {
+        val device = AudioDevice.BleHeadset("AirPods Pro", "AA:BB:CC:DD:EE:FF")
+
+        assertEquals("ble_AA:BB:CC:DD:EE:FF", device.id)
+        assertEquals("AirPods Pro", device.name)
+        assertEquals("AA:BB:CC:DD:EE:FF", device.address)
+    }
+
+    @Test
+    fun `BleHeadset default constructor has default values`() {
+        val device = AudioDevice.BleHeadset()
+
+        assertEquals("ble_headset", device.id)
+        assertEquals("BLE Audio", device.name)
+        assertEquals("", device.address)
+    }
+
+    // ==================== Hearing Aid Tests ====================
+
+    @Test
+    fun `HearingAid with address has correct id`() {
+        val device = AudioDevice.HearingAid("ReSound", "11:22:33:44:55:66")
+
+        assertEquals("hearing_aid_11:22:33:44:55:66", device.id)
+        assertEquals("ReSound", device.name)
+        assertEquals("11:22:33:44:55:66", device.address)
+    }
+
+    @Test
+    fun `HearingAid default constructor has default values`() {
+        val device = AudioDevice.HearingAid()
+
+        assertEquals("hearing_aid", device.id)
+        assertEquals("Hearing Aid", device.name)
+        assertEquals("", device.address)
+    }
+
+    // ==================== USB Headset Tests ====================
+
+    @Test
+    fun `UsbHeadset has correct defaults`() {
+        val device = AudioDevice.UsbHeadset()
+
+        assertEquals("usb_headset", device.id)
+        assertEquals("USB Audio", device.name)
+    }
+
+    @Test
+    fun `UsbHeadset with custom name`() {
+        val device = AudioDevice.UsbHeadset(deviceName = "USB DAC")
+
+        assertEquals("usb_headset", device.id)
+        assertEquals("USB DAC", device.name)
+    }
+
+    // ==================== Cross-type comparisons ====================
+
+    @Test
+    fun `ble and classic bluetooth are different types`() {
+        val classic = AudioDevice.BluetoothHeadset("Headset", "00:11:22:33:44:55")
+        val ble = AudioDevice.BleHeadset("Headset", "00:11:22:33:44:55")
+
+        assertNotEquals(classic, ble)
+        assertNotEquals(classic.id, ble.id)
+    }
+
+    @Test
+    fun `wired and usb headsets are different types`() {
+        val wired = AudioDevice.WiredHeadset()
+        val usb = AudioDevice.UsbHeadset()
+
+        assertNotEquals(wired, usb)
+        assertNotEquals(wired.id, usb.id)
     }
 }

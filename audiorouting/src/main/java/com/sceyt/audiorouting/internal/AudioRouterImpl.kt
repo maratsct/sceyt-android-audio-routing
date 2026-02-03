@@ -260,16 +260,24 @@ internal class AudioRouterImpl(
     private fun initializeDevices() {
         val devices = mutableListOf<AudioDevice>()
 
-        // Check for connected Bluetooth headset
+        // Check for connected Bluetooth headset (HFP/HSP)
         bluetoothHandler.getConnectedHeadset()?.let { devices.add(it) }
 
-        // Check for wired headset
-        if (wiredHeadsetHandler.isConnected) {
+        // Check for other connected audio devices (BLE, Hearing Aid, USB, Wired)
+        devices.addAll(audioDeviceManager.getConnectedDevices())
+
+        // Check for wired headset via broadcast receiver (for real-time updates)
+        if (wiredHeadsetHandler.isConnected && devices.none { it is AudioDevice.WiredHeadset }) {
             devices.add(AudioDevice.WiredHeadset())
         }
 
-        // Add earpiece if no wired headset and device has one
-        if (!wiredHeadsetHandler.isConnected && audioDeviceManager.hasEarpiece()) {
+        // Determine if earpiece should be shown (hidden when wired/USB headset connected)
+        val hasExternalHeadset = devices.any { 
+            it is AudioDevice.WiredHeadset || it is AudioDevice.UsbHeadset 
+        }
+
+        // Add earpiece if no external headset and device has one
+        if (!hasExternalHeadset && audioDeviceManager.hasEarpiece()) {
             devices.add(AudioDevice.Earpiece())
         }
 
@@ -278,8 +286,8 @@ internal class AudioRouterImpl(
             devices.add(AudioDevice.Speakerphone())
         }
 
-        // Sort by priority
-        val sortedDevices = devices.sortedBy { priorityManager.getPriority(it) }
+        // Remove duplicates and sort by priority
+        val sortedDevices = devices.distinctBy { it.id }.sortedBy { priorityManager.getPriority(it) }
 
         // Select best device
         val selected = priorityManager.selectBestDevice(sortedDevices, null)
