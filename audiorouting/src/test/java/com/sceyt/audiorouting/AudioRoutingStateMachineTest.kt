@@ -5,6 +5,7 @@ import com.sceyt.audiorouting.internal.state.AudioRoutingEvent
 import com.sceyt.audiorouting.internal.state.AudioRoutingState
 import com.sceyt.audiorouting.internal.state.AudioRoutingStateMachine
 import com.sceyt.audiorouting.internal.state.BluetoothScoState
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -27,7 +28,7 @@ class AudioRoutingStateMachineTest {
         // Use UnconfinedTestDispatcher so events are processed immediately
         val testDispatcher = UnconfinedTestDispatcher()
         return AudioRoutingStateMachine(
-            scope = kotlinx.coroutines.CoroutineScope(testDispatcher),
+            scope = CoroutineScope(testDispatcher),
             config = config,
             logger = logger,
             onStateChanged = onStateChanged

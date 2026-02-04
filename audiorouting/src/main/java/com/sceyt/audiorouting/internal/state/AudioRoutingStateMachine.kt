@@ -27,7 +27,9 @@ internal class AudioRoutingStateMachine(
     private val eventChannel = Channel<AudioRoutingEvent>(Channel.UNLIMITED)
 
     // Preferred device order (can be updated at runtime)
-    private var preferredOrder: List<Class<out AudioDevice>> = config.preferredDeviceOrder.map { it.java }
+    private var preferredOrder: List<Class<out AudioDevice>> = config.preferredDeviceOrder.map {
+        it.java
+    }
 
     init {
         // Start event processing loop
@@ -61,7 +63,11 @@ internal class AudioRoutingStateMachine(
             is AudioRoutingEvent.Stop -> handleStop(oldState)
             is AudioRoutingEvent.Activate -> handleActivate(oldState)
             is AudioRoutingEvent.Deactivate -> handleDeactivate(oldState)
-            is AudioRoutingEvent.BluetoothDeviceConnected -> handleBluetoothConnected(oldState, event.device)
+            is AudioRoutingEvent.BluetoothDeviceConnected -> handleBluetoothConnected(
+                state = oldState,
+                device = event.device
+            )
+
             is AudioRoutingEvent.BluetoothDeviceDisconnected -> handleBluetoothDisconnected(oldState)
             is AudioRoutingEvent.WiredHeadsetConnected -> handleWiredHeadsetConnected(oldState)
             is AudioRoutingEvent.WiredHeadsetDisconnected -> handleWiredHeadsetDisconnected(oldState)
@@ -70,9 +76,17 @@ internal class AudioRoutingStateMachine(
             is AudioRoutingEvent.BluetoothScoFailed -> handleScoFailed(oldState, event.reason)
             is AudioRoutingEvent.UserSelectDevice -> handleUserSelectDevice(oldState, event.device)
             is AudioRoutingEvent.ClearManualSelection -> handleClearManualSelection(oldState)
-            is AudioRoutingEvent.UpdatePreferredOrder -> handleUpdatePreferredOrder(oldState, event.order)
+            is AudioRoutingEvent.UpdatePreferredOrder -> handleUpdatePreferredOrder(
+                oldState,
+                event.order
+            )
+
             is AudioRoutingEvent.EnumerateDevices -> handleEnumerateDevices(oldState)
-            is AudioRoutingEvent.InitializeDevices -> handleInitializeDevices(oldState, event.devices, event.selectedDevice)
+            is AudioRoutingEvent.InitializeDevices -> handleInitializeDevices(
+                state = oldState,
+                devices = event.devices,
+                selectedDevice = event.selectedDevice
+            )
         }
 
         if (newState != oldState) {
@@ -103,6 +117,7 @@ internal class AudioRoutingStateMachine(
                 logger.w("Cannot activate when stopped")
                 state
             }
+
             RoutingState.STARTED -> state.copy(routingState = RoutingState.ACTIVATED)
             RoutingState.ACTIVATED -> {
                 logger.d("Already activated")
@@ -117,6 +132,7 @@ internal class AudioRoutingStateMachine(
                 routingState = RoutingState.STARTED,
                 bluetoothScoState = BluetoothScoState.Disconnected
             )
+
             else -> {
                 logger.d("Ignoring deactivate() - not activated")
                 state
@@ -159,7 +175,8 @@ internal class AudioRoutingStateMachine(
         }
 
         // Clear manual selection if the manually selected BT device was disconnected
-        val clearManual = state.isManualSelection && state.selectedDevice is AudioDevice.BluetoothHeadset
+        val clearManual =
+            state.isManualSelection && state.selectedDevice is AudioDevice.BluetoothHeadset
 
         return state.copy(
             availableDevices = newDevices,
@@ -201,7 +218,8 @@ internal class AudioRoutingStateMachine(
         }
 
         // Clear manual selection if the manually selected wired headset was disconnected
-        val clearManual = state.isManualSelection && state.selectedDevice is AudioDevice.WiredHeadset
+        val clearManual =
+            state.isManualSelection && state.selectedDevice is AudioDevice.WiredHeadset
 
         return state.copy(
             availableDevices = newDevices,
@@ -340,17 +358,20 @@ internal class AudioRoutingStateMachine(
                 AudioDevice.BluetoothHeadset::class.java -> {
                     bluetoothDevice?.let { devices.add(it) }
                 }
+
                 AudioDevice.WiredHeadset::class.java -> {
                     if (wiredHeadsetConnected) {
                         devices.add(AudioDevice.WiredHeadset())
                     }
                 }
+
                 AudioDevice.Earpiece::class.java -> {
                     // Earpiece is hidden when wired headset is connected
                     if (!wiredHeadsetConnected) {
                         devices.add(AudioDevice.Earpiece())
                     }
                 }
+
                 AudioDevice.Speakerphone::class.java -> {
                     devices.add(AudioDevice.Speakerphone())
                 }
