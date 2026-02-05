@@ -36,7 +36,7 @@ internal class AudioRouterImpl(
 ) : AudioRouter {
 
     private val logger = Logger(enabled = config.loggingEnabled)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // State flows
     private val _availableDevices = MutableStateFlow<List<AudioDevice>>(emptyList())
@@ -292,27 +292,30 @@ internal class AudioRouterImpl(
     }
 
     private fun handleStateChanged(oldState: AudioRoutingState, newState: AudioRoutingState) {
-        logger.d("State changed: ${oldState.routingState} -> ${newState.routingState}")
-
         // Update public state flows
         if (oldState.routingState != newState.routingState) {
+            logger.d("State changed: ${oldState.routingState} -> ${newState.routingState}")
             _routingState.value = newState.routingState
             listener?.onRoutingStateChanged(newState.routingState)
         }
 
         if (oldState.availableDevices != newState.availableDevices ||
             oldState.selectedDevice != newState.selectedDevice) {
+            logger.d("Device change: ${oldState.selectedDevice?.name} -> ${newState.selectedDevice?.name}, " +
+                    "available: ${newState.availableDevices.map { it.name }}")
             _availableDevices.value = newState.availableDevices
             _selectedDevice.value = newState.selectedDevice
             listener?.onAudioDevicesChanged(newState.availableDevices, newState.selectedDevice)
         }
 
         if (oldState.isManualSelection != newState.isManualSelection) {
+            logger.d("Manual selection changed: ${oldState.isManualSelection} -> ${newState.isManualSelection}")
             _isManualSelection.value = newState.isManualSelection
         }
 
         // Handle device activation when in ACTIVATED state
         if (newState.isActivated && oldState.selectedDevice != newState.selectedDevice) {
+            logger.d("Selected device changed to ${newState.selectedDevice?.name}")
             newState.selectedDevice?.let { device ->
                 activateDevice(device)
             }
@@ -320,6 +323,7 @@ internal class AudioRouterImpl(
 
         // Handle Bluetooth SCO failure
         if (newState.bluetoothScoState is BluetoothScoState.Failed) {
+            logger.w("Bluetooth SCO connection failed: ${newState.bluetoothScoState.reason}, retry count: ${newState.bluetoothScoState.retryCount}")
             val failedState = newState.bluetoothScoState
             if (failedState.retryCount >= config.scoRetryCount) {
                 val btDevice = oldState.selectedDevice as? AudioDevice.BluetoothHeadset
