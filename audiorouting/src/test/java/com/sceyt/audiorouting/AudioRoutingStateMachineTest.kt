@@ -1,6 +1,7 @@
 package com.sceyt.audiorouting
 
 import com.sceyt.audiorouting.internal.Logger
+import com.sceyt.audiorouting.internal.device.DevicePriorityManager
 import com.sceyt.audiorouting.internal.state.AudioRoutingEvent
 import com.sceyt.audiorouting.internal.state.AudioRoutingState
 import com.sceyt.audiorouting.internal.state.AudioRoutingStateMachine
@@ -27,10 +28,12 @@ class AudioRoutingStateMachineTest {
     ): AudioRoutingStateMachine {
         // Use UnconfinedTestDispatcher so events are processed immediately
         val testDispatcher = UnconfinedTestDispatcher()
+        val deviceSelector = DevicePriorityManager(config, logger)
         return AudioRoutingStateMachine(
             scope = CoroutineScope(testDispatcher),
             config = config,
             logger = logger,
+            deviceManager = deviceSelector,
             onStateChanged = onStateChanged
         )
     }

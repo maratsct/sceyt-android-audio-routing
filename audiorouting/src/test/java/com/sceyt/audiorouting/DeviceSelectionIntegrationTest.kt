@@ -1,6 +1,7 @@
 package com.sceyt.audiorouting
 
 import com.sceyt.audiorouting.internal.Logger
+import com.sceyt.audiorouting.internal.device.DevicePriorityManager
 import com.sceyt.audiorouting.internal.state.AudioRoutingEvent
 import com.sceyt.audiorouting.internal.state.AudioRoutingStateMachine
 import kotlinx.coroutines.CoroutineScope
@@ -19,12 +20,14 @@ class DeviceSelectionIntegrationTest {
     private val logger = Logger(enabled = false)
     private val config = AudioRouterConfig()
 
-    private fun createStateMachine(): AudioRoutingStateMachine {
+    private fun createStateMachine(customConfig: AudioRouterConfig = config): AudioRoutingStateMachine {
         val testDispatcher = UnconfinedTestDispatcher()
+        val deviceSelector = DevicePriorityManager(customConfig, logger)
         return AudioRoutingStateMachine(
             scope = CoroutineScope(testDispatcher),
-            config = config,
+            config = customConfig,
             logger = logger,
+            deviceManager = deviceSelector,
             onStateChanged = { _, _ -> }
         )
     }
@@ -350,15 +353,9 @@ class DeviceSelectionIntegrationTest {
                 AudioDevice.Speakerphone::class
             )
         )
-        
-        val testDispatcher = UnconfinedTestDispatcher()
-        val stateMachine = AudioRoutingStateMachine(
-            scope = CoroutineScope(testDispatcher),
-            config = customConfig,
-            logger = logger,
-            onStateChanged = { _, _ -> }
-        )
-        
+
+        val stateMachine = createStateMachine(customConfig)
+
         try {
             val btDevice = AudioDevice.BluetoothHeadset("BT Headset", "00:11:22:33:44:55")
 
@@ -387,15 +384,9 @@ class DeviceSelectionIntegrationTest {
                 AudioDevice.Earpiece::class
             )
         )
-        
-        val testDispatcher = UnconfinedTestDispatcher()
-        val stateMachine = AudioRoutingStateMachine(
-            scope = CoroutineScope(testDispatcher),
-            config = customConfig,
-            logger = logger,
-            onStateChanged = { _, _ -> }
-        )
-        
+
+        val stateMachine = createStateMachine(customConfig)
+
         try {
             stateMachine.sendEvent(AudioRoutingEvent.Start)
             // No BT or wired connected - should fallback to speaker (3rd) before earpiece (4th)

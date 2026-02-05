@@ -138,7 +138,7 @@ class AudioRouterInstrumentedTest {
     @Test
     fun selectDevice_speakerphone_succeeds() = runBlocking {
         audioRouter.start()
-        delay(500)
+        delay(200)
 
         // Verify speakerphone is in available devices first
         val devices = audioRouter.availableDevices.value

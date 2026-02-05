@@ -74,6 +74,7 @@ internal class AudioRouterImpl(
         scope = scope,
         config = config,
         logger = logger,
+        deviceManager = priorityManager,
         onStateChanged = { oldState, newState -> handleStateChanged(oldState, newState) }
     )
 
