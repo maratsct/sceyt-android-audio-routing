@@ -67,7 +67,11 @@ internal class AudioRouterImpl(
     }
 
     // Components
-    private val audioDeviceManager = AudioDeviceManager.create(context, logger, audioFocusChangeListener)
+    private val audioDeviceManager = AudioDeviceManager.create(
+        context = context,
+        logger = logger,
+        audioFocusChangeListener = audioFocusChangeListener
+    )
     private val priorityManager = DevicePriorityManager(config, logger)
 
     private val stateMachine = AudioRoutingStateMachine(
@@ -94,6 +98,7 @@ internal class AudioRouterImpl(
             when (state) {
                 AudioManager.SCO_AUDIO_STATE_CONNECTED ->
                     stateMachine.sendEvent(AudioRoutingEvent.BluetoothScoConnected)
+
                 AudioManager.SCO_AUDIO_STATE_DISCONNECTED ->
                     stateMachine.sendEvent(AudioRoutingEvent.BluetoothScoDisconnected)
             }
@@ -291,9 +296,12 @@ internal class AudioRouterImpl(
         }
 
         if (oldState.availableDevices != newState.availableDevices ||
-            oldState.selectedDevice != newState.selectedDevice) {
-            logger.d("Device change: ${oldState.selectedDevice?.name} -> ${newState.selectedDevice?.name}, " +
-                    "available: ${newState.availableDevices.map { it.name }}")
+            oldState.selectedDevice != newState.selectedDevice
+        ) {
+            logger.d(
+                "Device change: ${oldState.selectedDevice?.name} -> ${newState.selectedDevice?.name}, " +
+                    "available: ${newState.availableDevices.map { it.name }}"
+            )
             _availableDevices.value = newState.availableDevices
             _selectedDevice.value = newState.selectedDevice
             listener?.onAudioDevicesChanged(newState.availableDevices, newState.selectedDevice)
@@ -335,15 +343,18 @@ internal class AudioRouterImpl(
                         is BluetoothScoManager.ScoResult.Failed -> {
                             stateMachine.sendEvent(AudioRoutingEvent.BluetoothScoFailed(result.reason))
                         }
+
                         is BluetoothScoManager.ScoResult.Connected -> {
                             // Already handled via SCO state events
                         }
+
                         is BluetoothScoManager.ScoResult.Cancelled -> {
                             // Operation was cancelled, no action needed
                         }
                     }
                 }
             }
+
             else -> {
                 audioDeviceManager.activateDevice(device)
             }
