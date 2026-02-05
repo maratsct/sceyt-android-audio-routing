@@ -168,7 +168,7 @@ class MelodicSoundPlayer {
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .build()
                 )
                 isLooping = true
