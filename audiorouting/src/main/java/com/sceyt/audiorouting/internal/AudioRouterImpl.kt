@@ -141,6 +141,7 @@ internal class AudioRouterImpl(
 
         // Initialize with default devices
         initializeDevices()
+        activate()
     }
 
     override fun stop() {
@@ -166,12 +167,7 @@ internal class AudioRouterImpl(
         listener = null
     }
 
-    override fun activate() {
-        if (_routingState.value == RoutingState.IDLE) {
-            logger.w("Cannot activate - router is stopped. Call start() first.")
-            return
-        }
-
+    private fun activate() {
         if (_routingState.value == RoutingState.ACTIVATED) {
             logger.d("Already activated")
             return
@@ -198,12 +194,7 @@ internal class AudioRouterImpl(
         }
     }
 
-    override fun deactivate() {
-        if (_routingState.value != RoutingState.ACTIVATED) {
-            logger.d("Not activated, nothing to deactivate")
-            return
-        }
-
+    private fun deactivate() {
         logger.d("Deactivating AudioRouter")
 
         // Stop Bluetooth SCO if active
@@ -253,7 +244,7 @@ internal class AudioRouterImpl(
             logger.d("Cannot refresh devices - router is stopped")
             return
         }
-        
+
         logger.d("Refreshing devices")
         initializeDevices()
     }

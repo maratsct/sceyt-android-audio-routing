@@ -126,17 +126,11 @@ audioRouter.start(
     }
 )
 
-// When your call becomes active (start sending/receiving media)
-audioRouter.activate()
-
 // When the call ends
-audioRouter.deactivate()
-audioRouter.stop()
 audioRouter.release()
 ```
 
 `start()` / `stop()` control listening + internal state.  
-`activate()` / `deactivate()` control actual audio routing / focus / SCO.
 
 ---
 
