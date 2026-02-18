@@ -291,10 +291,7 @@ fun AudioRoutingDemo(
 
             // Control Buttons
             ControlButtons(
-                routingState = routingState,
                 isManualSelection = isManualSelection,
-                onActivate = { audioRouter.activate() },
-                onDeactivate = { audioRouter.deactivate() },
                 onClearManualSelection = { audioRouter.clearManualSelection() },
                 onRequestPermission = onRequestPermission
             )
@@ -552,39 +549,10 @@ fun StatusBadge(routingState: RoutingState) {
 
 @Composable
 fun ControlButtons(
-    routingState: RoutingState,
     isManualSelection: Boolean,
-    onActivate: () -> Unit,
-    onDeactivate: () -> Unit,
     onClearManualSelection: () -> Unit,
     onRequestPermission: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Button(
-            onClick = onActivate,
-            enabled = routingState == RoutingState.STARTED,
-            modifier = Modifier.weight(1f)
-        ) {
-            Text("Activate")
-        }
-
-        Button(
-            onClick = onDeactivate,
-            enabled = routingState == RoutingState.ACTIVATED,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.secondary
-            )
-        ) {
-            Text("Deactivate")
-        }
-    }
-
-    Spacer(modifier = Modifier.height(8.dp))
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
