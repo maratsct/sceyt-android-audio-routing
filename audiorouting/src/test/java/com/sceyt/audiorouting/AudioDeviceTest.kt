@@ -83,9 +83,9 @@ class AudioDeviceTest {
 
     @Test
     fun `custom names are preserved`() {
-        val wired = AudioDevice.WiredHeadset(name = "USB-C Headphones")
-        val earpiece = AudioDevice.Earpiece(name = "Phone Speaker")
-        val speaker = AudioDevice.Speakerphone(name = "Loud Speaker")
+        val wired = AudioDevice.WiredHeadset(deviceName = "USB-C Headphones")
+        val earpiece = AudioDevice.Earpiece(deviceName = "Phone Speaker")
+        val speaker = AudioDevice.Speakerphone(deviceName = "Loud Speaker")
 
         assertEquals("USB-C Headphones", wired.name)
         assertEquals("Phone Speaker", earpiece.name)

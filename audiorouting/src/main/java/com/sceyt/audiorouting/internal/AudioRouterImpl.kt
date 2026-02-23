@@ -36,7 +36,7 @@ internal class AudioRouterImpl(
 ) : AudioRouter {
 
     private val logger = Logger(enabled = config.loggingEnabled)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // State flows
     private val _availableDevices = MutableStateFlow<List<AudioDevice>>(emptyList())
@@ -67,13 +67,18 @@ internal class AudioRouterImpl(
     }
 
     // Components
-    private val audioDeviceManager = AudioDeviceManager.create(context, logger, audioFocusChangeListener)
+    private val audioDeviceManager = AudioDeviceManager.create(
+        context = context,
+        logger = logger,
+        audioFocusChangeListener = audioFocusChangeListener
+    )
     private val priorityManager = DevicePriorityManager(config, logger)
 
     private val stateMachine = AudioRoutingStateMachine(
         scope = scope,
         config = config,
         logger = logger,
+        deviceManager = priorityManager,
         onStateChanged = { oldState, newState -> handleStateChanged(oldState, newState) }
     )
 
@@ -93,6 +98,7 @@ internal class AudioRouterImpl(
             when (state) {
                 AudioManager.SCO_AUDIO_STATE_CONNECTED ->
                     stateMachine.sendEvent(AudioRoutingEvent.BluetoothScoConnected)
+
                 AudioManager.SCO_AUDIO_STATE_DISCONNECTED ->
                     stateMachine.sendEvent(AudioRoutingEvent.BluetoothScoDisconnected)
             }
@@ -140,6 +146,7 @@ internal class AudioRouterImpl(
 
         // Initialize with default devices
         initializeDevices()
+        activate()
     }
 
     override fun stop() {
@@ -165,12 +172,7 @@ internal class AudioRouterImpl(
         listener = null
     }
 
-    override fun activate() {
-        if (_routingState.value == RoutingState.IDLE) {
-            logger.w("Cannot activate - router is stopped. Call start() first.")
-            return
-        }
-
+    private fun activate() {
         if (_routingState.value == RoutingState.ACTIVATED) {
             logger.d("Already activated")
             return
@@ -197,12 +199,7 @@ internal class AudioRouterImpl(
         }
     }
 
-    override fun deactivate() {
-        if (_routingState.value != RoutingState.ACTIVATED) {
-            logger.d("Not activated, nothing to deactivate")
-            return
-        }
-
+    private fun deactivate() {
         logger.d("Deactivating AudioRouter")
 
         // Stop Bluetooth SCO if active
@@ -252,7 +249,7 @@ internal class AudioRouterImpl(
             logger.d("Cannot refresh devices - router is stopped")
             return
         }
-        
+
         logger.d("Refreshing devices")
         initializeDevices()
     }
@@ -291,27 +288,33 @@ internal class AudioRouterImpl(
     }
 
     private fun handleStateChanged(oldState: AudioRoutingState, newState: AudioRoutingState) {
-        logger.d("State changed: ${oldState.routingState} -> ${newState.routingState}")
-
         // Update public state flows
         if (oldState.routingState != newState.routingState) {
+            logger.d("State changed: ${oldState.routingState} -> ${newState.routingState}")
             _routingState.value = newState.routingState
             listener?.onRoutingStateChanged(newState.routingState)
         }
 
         if (oldState.availableDevices != newState.availableDevices ||
-            oldState.selectedDevice != newState.selectedDevice) {
+            oldState.selectedDevice != newState.selectedDevice
+        ) {
+            logger.d(
+                "Device change: ${oldState.selectedDevice?.name} -> ${newState.selectedDevice?.name}, " +
+                    "available: ${newState.availableDevices.map { it.name }}"
+            )
             _availableDevices.value = newState.availableDevices
             _selectedDevice.value = newState.selectedDevice
             listener?.onAudioDevicesChanged(newState.availableDevices, newState.selectedDevice)
         }
 
         if (oldState.isManualSelection != newState.isManualSelection) {
+            logger.d("Manual selection changed: ${oldState.isManualSelection} -> ${newState.isManualSelection}")
             _isManualSelection.value = newState.isManualSelection
         }
 
         // Handle device activation when in ACTIVATED state
         if (newState.isActivated && oldState.selectedDevice != newState.selectedDevice) {
+            logger.d("Selected device changed to ${newState.selectedDevice?.name}")
             newState.selectedDevice?.let { device ->
                 activateDevice(device)
             }
@@ -319,6 +322,7 @@ internal class AudioRouterImpl(
 
         // Handle Bluetooth SCO failure
         if (newState.bluetoothScoState is BluetoothScoState.Failed) {
+            logger.w("Bluetooth SCO connection failed: ${newState.bluetoothScoState.reason}, retry count: ${newState.bluetoothScoState.retryCount}")
             val failedState = newState.bluetoothScoState
             if (failedState.retryCount >= config.scoRetryCount) {
                 val btDevice = oldState.selectedDevice as? AudioDevice.BluetoothHeadset
@@ -339,15 +343,18 @@ internal class AudioRouterImpl(
                         is BluetoothScoManager.ScoResult.Failed -> {
                             stateMachine.sendEvent(AudioRoutingEvent.BluetoothScoFailed(result.reason))
                         }
+
                         is BluetoothScoManager.ScoResult.Connected -> {
                             // Already handled via SCO state events
                         }
+
                         is BluetoothScoManager.ScoResult.Cancelled -> {
                             // Operation was cancelled, no action needed
                         }
                     }
                 }
             }
+
             else -> {
                 audioDeviceManager.activateDevice(device)
             }

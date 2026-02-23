@@ -60,11 +60,14 @@ internal class DevicePriorityManager(
             return null
         }
 
+        val manuallySelectedDevice = manuallySelectedDevice
         // If manual selection is active and the manually selected device is still available
         if (_isManualSelection && manuallySelectedDevice != null) {
-            val manualDeviceAvailable = availableDevices.any { isSameDevice(it, manuallySelectedDevice!!) }
+            val manualDeviceAvailable = availableDevices.any {
+                isSameDevice(it, manuallySelectedDevice)
+            }
             if (manualDeviceAvailable) {
-                logger.d("Keeping manually selected device: ${manuallySelectedDevice?.name}")
+                logger.d("Keeping manually selected device: ${manuallySelectedDevice.name}")
                 return manuallySelectedDevice
             } else {
                 // Manually selected device no longer available, clear manual selection
@@ -77,7 +80,7 @@ internal class DevicePriorityManager(
         if (newlyConnectedDevice != null && !_isManualSelection) {
             val newDevicePriority = getPriority(newlyConnectedDevice)
             val currentPriority = currentDevice?.let { getPriority(it) } ?: Int.MAX_VALUE
-            
+
             if (newDevicePriority < currentPriority) {
                 logger.d("Switching to newly connected device: ${newlyConnectedDevice.name} (priority $newDevicePriority < $currentPriority)")
                 return newlyConnectedDevice
@@ -138,7 +141,7 @@ internal class DevicePriorityManager(
     ): AudioDevice? {
         // Filter out the disconnected device
         val remaining = availableDevices.filterNot { isSameDevice(it, disconnectedDevice) }
-        
+
         if (remaining.isEmpty()) {
             logger.d("No fallback devices available")
             return null
@@ -204,5 +207,47 @@ internal class DevicePriorityManager(
      */
     private fun isSameDevice(a: AudioDevice, b: AudioDevice): Boolean {
         return a.id == b.id
+    }
+
+    /**
+     * Builds the list of available devices based on current connection state.
+     *
+     * @param bluetoothDevice Currently connected Bluetooth device, if any.
+     * @param wiredHeadsetConnected Whether a wired headset is connected.
+     * @return List of available devices sorted by priority.
+     */
+    fun buildDeviceList(
+        bluetoothDevice: AudioDevice.BluetoothHeadset?,
+        wiredHeadsetConnected: Boolean
+    ): List<AudioDevice> {
+        val devices = mutableListOf<AudioDevice>()
+
+        // Add devices in priority order
+        preferredOrder.forEach { deviceClass ->
+            when (deviceClass) {
+                AudioDevice.BluetoothHeadset::class -> {
+                    bluetoothDevice?.let { devices.add(it) }
+                }
+
+                AudioDevice.WiredHeadset::class -> {
+                    if (wiredHeadsetConnected) {
+                        devices.add(AudioDevice.WiredHeadset())
+                    }
+                }
+
+                AudioDevice.Earpiece::class -> {
+                    // Earpiece is hidden when wired headset is connected
+                    if (!wiredHeadsetConnected) {
+                        devices.add(AudioDevice.Earpiece())
+                    }
+                }
+
+                AudioDevice.Speakerphone::class -> {
+                    devices.add(AudioDevice.Speakerphone())
+                }
+            }
+        }
+
+        return devices
     }
 }

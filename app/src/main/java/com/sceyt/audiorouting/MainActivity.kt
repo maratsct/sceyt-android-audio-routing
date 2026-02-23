@@ -1,10 +1,10 @@
 package com.sceyt.audiorouting
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -58,17 +58,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.sceyt.audiorouting.ui.theme.AudioRoutingTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
 
@@ -150,88 +149,39 @@ class MainActivity : ComponentActivity() {
 @Stable
 class MelodicSoundPlayer {
     private val sampleRate = 44100
-    private var audioTrack: AudioTrack? = null
+    private var mediaPlayer: MediaPlayer? = null
     private var playbackJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Default)
-
-    // Musical notes frequencies (Hz) - C Major scale
-    private val notes = mapOf(
-        "C4" to 261.63,
-        "D4" to 293.66,
-        "E4" to 329.63,
-        "F4" to 349.23,
-        "G4" to 392.00,
-        "A4" to 440.00,
-        "B4" to 493.88,
-        "C5" to 523.25,
-        "D5" to 587.33,
-        "E5" to 659.25
-    )
-
-    // A pleasant melody pattern
-    private val melody = listOf(
-        "C4", "E4", "G4", "C5",  // C major arpeggio up
-        "B4", "G4", "E4", "C4",  // Back down
-        "D4", "F4", "A4", "D5",  // D minor arpeggio up
-        "C5", "A4", "F4", "D4",  // Back down
-        "E4", "G4", "B4", "E5",  // E minor arpeggio up
-        "D5", "B4", "G4", "E4",  // Back down
-        "F4", "A4", "C5", "F4",  // F major
-        "G4", "B4", "D5", "G4"   // G major
-    )
 
     var isPlaying: Boolean = false
         private set
 
-    fun play() {
+    fun play(context: Context) {
         if (isPlaying) return
         isPlaying = true
 
         playbackJob = scope.launch {
-            try {
-                val bufferSize = AudioTrack.getMinBufferSize(
-                    sampleRate,
-                    AudioFormat.CHANNEL_OUT_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT
+            // Create and configure MediaPlayer
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .build()
+                )
+                isLooping = true
+                setDataSource(
+                    context,
+                    "android.resource://${context.packageName}/${R.raw.song}".toUri()
                 )
 
-                audioTrack = AudioTrack.Builder()
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build()
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(sampleRate)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build()
-                    )
-                    .setBufferSizeInBytes(bufferSize)
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .build()
-
-                audioTrack?.play()
-
-                var melodyIndex = 0
-                while (isActive && isPlaying) {
-                    val noteName = melody[melodyIndex % melody.size]
-                    val frequency = notes[noteName] ?: 440.0
-
-                    // Generate note with envelope (attack-decay-sustain-release)
-                    val noteData = generateNoteWithEnvelope(frequency, 200) // 200ms per note
-                    audioTrack?.write(noteData, 0, noteData.size)
-
-                    // Small pause between notes
-                    val silence = ShortArray((sampleRate * 0.05).toInt()) // 50ms silence
-                    audioTrack?.write(silence, 0, silence.size)
-
-                    melodyIndex++
+                // Set up listeners
+                setOnPreparedListener {
+                    it.start()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+
+                // Prepare asynchronously
+                prepareAsync()
             }
         }
     }
@@ -240,54 +190,12 @@ class MelodicSoundPlayer {
         isPlaying = false
         playbackJob?.cancel()
         playbackJob = null
-        audioTrack?.stop()
-        audioTrack?.release()
-        audioTrack = null
+        mediaPlayer?.stop()
+        mediaPlayer?.release()
     }
 
     fun release() {
         stop()
-    }
-
-    @Suppress("SameParameterValue")
-    private fun generateNoteWithEnvelope(frequency: Double, durationMs: Int): ShortArray {
-        val numSamples = (sampleRate * durationMs / 1000.0).toInt()
-        val samples = ShortArray(numSamples)
-
-        val attackSamples = (numSamples * 0.1).toInt()
-        val decaySamples = (numSamples * 0.1).toInt()
-        val releaseSamples = (numSamples * 0.3).toInt()
-        val sustainSamples = numSamples - attackSamples - decaySamples - releaseSamples
-
-        for (i in 0 until numSamples) {
-            // Generate sine wave with harmonics for richer sound
-            val time = i.toDouble() / sampleRate
-            val fundamental = sin(2 * PI * frequency * time)
-            val harmonic2 = 0.5 * sin(2 * PI * frequency * 2 * time)
-            val harmonic3 = 0.25 * sin(2 * PI * frequency * 3 * time)
-            var sample = (fundamental + harmonic2 + harmonic3) / 1.75
-
-            // Apply ADSR envelope
-            val envelope = when {
-                i < attackSamples -> i.toDouble() / attackSamples // Attack
-                i < attackSamples + decaySamples -> {
-                    val decayProgress = (i - attackSamples).toDouble() / decaySamples
-                    1.0 - (0.3 * decayProgress) // Decay to 0.7
-                }
-
-                i < attackSamples + decaySamples + sustainSamples -> 0.7 // Sustain
-                else -> {
-                    val releaseProgress =
-                        (i - attackSamples - decaySamples - sustainSamples).toDouble() / releaseSamples
-                    0.7 * (1.0 - releaseProgress) // Release
-                }
-            }
-
-            sample *= envelope
-            samples[i] = (sample * Short.MAX_VALUE * 0.8).toInt().toShort()
-        }
-
-        return samples
     }
 }
 
@@ -340,15 +248,13 @@ fun AudioRoutingDemo(
 
             // Control Buttons
             ControlButtons(
-                routingState = routingState,
                 isManualSelection = isManualSelection,
-                onActivate = { audioRouter.activate() },
-                onDeactivate = { audioRouter.deactivate() },
                 onClearManualSelection = { audioRouter.clearManualSelection() },
                 onRequestPermission = onRequestPermission
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+            val context = LocalContext.current
 
             // Sound Control Button
             SoundControlButton(
@@ -359,7 +265,7 @@ fun AudioRoutingDemo(
                         soundPlayer.stop()
                         isSoundPlaying = false
                     } else {
-                        soundPlayer.play()
+                        soundPlayer.play(context)
                         isSoundPlaying = true
                     }
                 }
@@ -600,39 +506,10 @@ fun StatusBadge(routingState: RoutingState) {
 
 @Composable
 fun ControlButtons(
-    routingState: RoutingState,
     isManualSelection: Boolean,
-    onActivate: () -> Unit,
-    onDeactivate: () -> Unit,
     onClearManualSelection: () -> Unit,
     onRequestPermission: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Button(
-            onClick = onActivate,
-            enabled = routingState == RoutingState.STARTED,
-            modifier = Modifier.weight(1f)
-        ) {
-            Text("Activate")
-        }
-
-        Button(
-            onClick = onDeactivate,
-            enabled = routingState == RoutingState.ACTIVATED,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.secondary
-            )
-        ) {
-            Text("Deactivate")
-        }
-    }
-
-    Spacer(modifier = Modifier.height(8.dp))
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)

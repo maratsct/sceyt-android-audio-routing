@@ -258,7 +258,6 @@ internal class AudioDeviceManager(
             }
 
             is AudioDevice.Earpiece -> {
-                enableSpeakerphone(false)
                 stopBluetoothSco()
                 enableEarpiece(true)
             }

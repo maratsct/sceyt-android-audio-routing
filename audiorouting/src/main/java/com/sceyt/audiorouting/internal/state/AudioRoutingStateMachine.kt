@@ -4,6 +4,7 @@ import com.sceyt.audiorouting.AudioDevice
 import com.sceyt.audiorouting.AudioRouterConfig
 import com.sceyt.audiorouting.RoutingState
 import com.sceyt.audiorouting.internal.Logger
+import com.sceyt.audiorouting.internal.device.DevicePriorityManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,15 +20,13 @@ internal class AudioRoutingStateMachine(
     scope: CoroutineScope,
     private val config: AudioRouterConfig,
     private val logger: Logger,
+    private val deviceManager: DevicePriorityManager,
     private val onStateChanged: suspend (AudioRoutingState, AudioRoutingState) -> Unit
 ) {
     private val _state = MutableStateFlow(AudioRoutingState())
     val state: StateFlow<AudioRoutingState> = _state.asStateFlow()
 
     private val eventChannel = Channel<AudioRoutingEvent>(Channel.UNLIMITED)
-
-    // Preferred device order (can be updated at runtime)
-    private var preferredOrder: List<Class<out AudioDevice>> = config.preferredDeviceOrder.map { it.java }
 
     init {
         // Start event processing loop
@@ -61,7 +60,11 @@ internal class AudioRoutingStateMachine(
             is AudioRoutingEvent.Stop -> handleStop(oldState)
             is AudioRoutingEvent.Activate -> handleActivate(oldState)
             is AudioRoutingEvent.Deactivate -> handleDeactivate(oldState)
-            is AudioRoutingEvent.BluetoothDeviceConnected -> handleBluetoothConnected(oldState, event.device)
+            is AudioRoutingEvent.BluetoothDeviceConnected -> handleBluetoothConnected(
+                state = oldState,
+                device = event.device
+            )
+
             is AudioRoutingEvent.BluetoothDeviceDisconnected -> handleBluetoothDisconnected(oldState)
             is AudioRoutingEvent.WiredHeadsetConnected -> handleWiredHeadsetConnected(oldState)
             is AudioRoutingEvent.WiredHeadsetDisconnected -> handleWiredHeadsetDisconnected(oldState)
@@ -70,9 +73,17 @@ internal class AudioRoutingStateMachine(
             is AudioRoutingEvent.BluetoothScoFailed -> handleScoFailed(oldState, event.reason)
             is AudioRoutingEvent.UserSelectDevice -> handleUserSelectDevice(oldState, event.device)
             is AudioRoutingEvent.ClearManualSelection -> handleClearManualSelection(oldState)
-            is AudioRoutingEvent.UpdatePreferredOrder -> handleUpdatePreferredOrder(oldState, event.order)
+            is AudioRoutingEvent.UpdatePreferredOrder -> handleUpdatePreferredOrder(
+                oldState,
+                event.order
+            )
+
             is AudioRoutingEvent.EnumerateDevices -> handleEnumerateDevices(oldState)
-            is AudioRoutingEvent.InitializeDevices -> handleInitializeDevices(oldState, event.devices, event.selectedDevice)
+            is AudioRoutingEvent.InitializeDevices -> handleInitializeDevices(
+                state = oldState,
+                devices = event.devices,
+                selectedDevice = event.selectedDevice
+            )
         }
 
         if (newState != oldState) {
@@ -103,6 +114,7 @@ internal class AudioRoutingStateMachine(
                 logger.w("Cannot activate when stopped")
                 state
             }
+
             RoutingState.STARTED -> state.copy(routingState = RoutingState.ACTIVATED)
             RoutingState.ACTIVATED -> {
                 logger.d("Already activated")
@@ -117,6 +129,7 @@ internal class AudioRoutingStateMachine(
                 routingState = RoutingState.STARTED,
                 bluetoothScoState = BluetoothScoState.Disconnected
             )
+
             else -> {
                 logger.d("Ignoring deactivate() - not activated")
                 state
@@ -130,12 +143,14 @@ internal class AudioRoutingStateMachine(
     ): AudioRoutingState {
         if (!state.isListening) return state
 
-        val newDevices = updateDeviceList(state, bluetoothDevice = device)
-        val newSelected = selectBestDevice(
-            available = newDevices,
-            current = state.selectedDevice,
-            isManualSelection = state.isManualSelection,
-            newDevice = device
+        val newDevices = deviceManager.buildDeviceList(
+            bluetoothDevice = device,
+            wiredHeadsetConnected = state.wiredHeadsetConnected
+        )
+        val newSelected = deviceManager.selectBestDevice(
+            availableDevices = newDevices,
+            currentDevice = state.selectedDevice,
+            newlyConnectedDevice = device
         )
 
         return state.copy(
@@ -150,36 +165,43 @@ internal class AudioRoutingStateMachine(
     ): AudioRoutingState {
         if (!state.isListening) return state
 
-        val newDevices = state.availableDevices.filterNot { it is AudioDevice.BluetoothHeadset }
-        val needsNewSelection = state.selectedDevice is AudioDevice.BluetoothHeadset
-        val newSelected = if (needsNewSelection) {
-            selectBestDevice(newDevices, null, isManualSelection = false)
+        val newDevices = deviceManager.buildDeviceList(
+            bluetoothDevice = null,
+            wiredHeadsetConnected = state.wiredHeadsetConnected
+        )
+        val currentDevice = state.selectedDevice
+        val newSelected = if (currentDevice is AudioDevice.BluetoothHeadset) {
+            deviceManager.selectFallbackDevice(state.availableDevices, currentDevice)
         } else {
-            state.selectedDevice
+            currentDevice
         }
 
         // Clear manual selection if the manually selected BT device was disconnected
-        val clearManual = state.isManualSelection && state.selectedDevice is AudioDevice.BluetoothHeadset
+        if (state.isManualSelection && currentDevice is AudioDevice.BluetoothHeadset) {
+            deviceManager.clearManualSelection()
+        }
 
         return state.copy(
             availableDevices = newDevices,
             selectedDevice = newSelected,
             activeBluetoothDevice = null,
             bluetoothScoState = BluetoothScoState.Disconnected,
-            isManualSelection = if (clearManual) false else state.isManualSelection
+            isManualSelection = deviceManager.isManualSelection
         )
     }
 
     private fun handleWiredHeadsetConnected(state: AudioRoutingState): AudioRoutingState {
         if (!state.isListening) return state
 
-        val newDevices = updateDeviceList(state, wiredHeadsetConnected = true)
+        val newDevices = deviceManager.buildDeviceList(
+            bluetoothDevice = state.activeBluetoothDevice,
+            wiredHeadsetConnected = true
+        )
         val wiredHeadset = AudioDevice.WiredHeadset()
-        val newSelected = selectBestDevice(
-            available = newDevices,
-            current = state.selectedDevice,
-            isManualSelection = state.isManualSelection,
-            newDevice = wiredHeadset
+        val newSelected = deviceManager.selectBestDevice(
+            availableDevices = newDevices,
+            currentDevice = state.selectedDevice,
+            newlyConnectedDevice = wiredHeadset
         )
 
         return state.copy(
@@ -192,22 +214,27 @@ internal class AudioRoutingStateMachine(
     private fun handleWiredHeadsetDisconnected(state: AudioRoutingState): AudioRoutingState {
         if (!state.isListening) return state
 
-        val newDevices = updateDeviceList(state, wiredHeadsetConnected = false)
-        val needsNewSelection = state.selectedDevice is AudioDevice.WiredHeadset
-        val newSelected = if (needsNewSelection) {
-            selectBestDevice(newDevices, null, isManualSelection = false)
+        val newDevices = deviceManager.buildDeviceList(
+            bluetoothDevice = state.activeBluetoothDevice,
+            wiredHeadsetConnected = false
+        )
+        val currentDevice = state.selectedDevice
+        val newSelected = if (currentDevice is AudioDevice.WiredHeadset) {
+            deviceManager.selectFallbackDevice(state.availableDevices, currentDevice)
         } else {
-            state.selectedDevice
+            currentDevice
         }
 
         // Clear manual selection if the manually selected wired headset was disconnected
-        val clearManual = state.isManualSelection && state.selectedDevice is AudioDevice.WiredHeadset
+        if (state.isManualSelection && currentDevice is AudioDevice.WiredHeadset) {
+            deviceManager.clearManualSelection()
+        }
 
         return state.copy(
             availableDevices = newDevices,
             selectedDevice = newSelected,
             wiredHeadsetConnected = false,
-            isManualSelection = if (clearManual) false else state.isManualSelection
+            isManualSelection = deviceManager.isManualSelection
         )
     }
 
@@ -226,15 +253,16 @@ internal class AudioRoutingStateMachine(
         return if (retryCount >= config.scoRetryCount) {
             // Max retries reached, select fallback device
             logger.w("Bluetooth SCO failed after $retryCount retries: $reason")
-            val newSelected = selectBestDevice(
-                available = state.availableDevices.filterNot { it is AudioDevice.BluetoothHeadset },
-                current = null,
-                isManualSelection = false
+            val nonBluetoothDevices = state.availableDevices.filterNot { it is AudioDevice.BluetoothHeadset }
+            val newSelected = deviceManager.selectBestDevice(
+                availableDevices = nonBluetoothDevices,
+                currentDevice = null
             )
+            deviceManager.clearManualSelectionIfBluetooth()
             state.copy(
                 bluetoothScoState = BluetoothScoState.Failed(reason, retryCount),
                 selectedDevice = newSelected,
-                isManualSelection = false // Clear manual selection on BT failure
+                isManualSelection = deviceManager.isManualSelection
             )
         } else {
             state.copy(
@@ -259,6 +287,8 @@ internal class AudioRoutingStateMachine(
             return state
         }
 
+        deviceManager.setManualSelection(device)
+
         return state.copy(
             selectedDevice = device,
             isManualSelection = true
@@ -268,10 +298,11 @@ internal class AudioRoutingStateMachine(
     private fun handleClearManualSelection(state: AudioRoutingState): AudioRoutingState {
         if (!state.isManualSelection) return state
 
-        val newSelected = selectBestDevice(
-            available = state.availableDevices,
-            current = null,
-            isManualSelection = false
+        deviceManager.clearManualSelection()
+
+        val newSelected = deviceManager.selectBestDevice(
+            availableDevices = state.availableDevices,
+            currentDevice = null
         )
 
         return state.copy(
@@ -284,14 +315,14 @@ internal class AudioRoutingStateMachine(
         state: AudioRoutingState,
         order: List<Class<out AudioDevice>>
     ): AudioRoutingState {
-        preferredOrder = order
+        // Convert Java Class to KClass for the strategy
+        deviceManager.setPreferredOrder(order.map { it.kotlin })
 
         // Re-select device based on new order if not manually selected
         if (!state.isManualSelection && state.isListening) {
-            val newSelected = selectBestDevice(
-                available = state.availableDevices,
-                current = null,
-                isManualSelection = false
+            val newSelected = deviceManager.selectBestDevice(
+                availableDevices = state.availableDevices,
+                currentDevice = null
             )
             return state.copy(selectedDevice = newSelected)
         }
@@ -322,87 +353,5 @@ internal class AudioRoutingStateMachine(
             wiredHeadsetConnected = hasWiredHeadset,
             activeBluetoothDevice = bluetoothDevice
         )
-    }
-
-    /**
-     * Updates the device list based on current state.
-     */
-    private fun updateDeviceList(
-        state: AudioRoutingState,
-        bluetoothDevice: AudioDevice.BluetoothHeadset? = state.activeBluetoothDevice,
-        wiredHeadsetConnected: Boolean = state.wiredHeadsetConnected
-    ): List<AudioDevice> {
-        val devices = mutableListOf<AudioDevice>()
-
-        // Add devices in priority order
-        preferredOrder.forEach { deviceClass ->
-            when (deviceClass) {
-                AudioDevice.BluetoothHeadset::class.java -> {
-                    bluetoothDevice?.let { devices.add(it) }
-                }
-                AudioDevice.WiredHeadset::class.java -> {
-                    if (wiredHeadsetConnected) {
-                        devices.add(AudioDevice.WiredHeadset())
-                    }
-                }
-                AudioDevice.Earpiece::class.java -> {
-                    // Earpiece is hidden when wired headset is connected
-                    if (!wiredHeadsetConnected) {
-                        devices.add(AudioDevice.Earpiece())
-                    }
-                }
-                AudioDevice.Speakerphone::class.java -> {
-                    devices.add(AudioDevice.Speakerphone())
-                }
-            }
-        }
-
-        return devices
-    }
-
-    /**
-     * Selects the best device based on priority and current state.
-     */
-    private fun selectBestDevice(
-        available: List<AudioDevice>,
-        current: AudioDevice?,
-        isManualSelection: Boolean,
-        newDevice: AudioDevice? = null
-    ): AudioDevice? {
-        if (available.isEmpty()) return null
-
-        // If manual selection is active and current device is still available, keep it
-        if (isManualSelection && current != null) {
-            val currentStillAvailable = available.any { it.id == current.id }
-            if (currentStillAvailable) {
-                return current
-            }
-        }
-
-        // If a new device connected and it has higher priority than current, switch to it
-        if (newDevice != null && !isManualSelection) {
-            val newDevicePriority = getPriority(newDevice)
-            val currentPriority = current?.let { getPriority(it) } ?: Int.MAX_VALUE
-            if (newDevicePriority < currentPriority) {
-                return newDevice
-            }
-        }
-
-        // Return current if still available
-        if (current != null && available.any { it.id == current.id }) {
-            return current
-        }
-
-        // Select highest priority available device
-        return available.minByOrNull { getPriority(it) }
-    }
-
-    /**
-     * Returns the priority of a device (lower is higher priority).
-     */
-    private fun getPriority(device: AudioDevice): Int {
-        val deviceClass = device::class.java
-        val index = preferredOrder.indexOfFirst { it.isAssignableFrom(deviceClass) }
-        return if (index >= 0) index else Int.MAX_VALUE
     }
 }

@@ -4,14 +4,19 @@ import android.content.Context
 import android.media.AudioManager
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,7 +24,7 @@ import org.junit.runner.RunWith
 /**
  * Instrumented integration tests for AudioRouter.
  * Tests the full router lifecycle on a real device.
- * 
+ *
  * Note: BLUETOOTH_CONNECT permission must be granted manually before running tests
  * or via adb: adb shell pm grant <package> android.permission.BLUETOOTH_CONNECT
  */
@@ -35,7 +40,7 @@ class AudioRouterInstrumentedTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        
+
         val config = AudioRouterConfig(loggingEnabled = true)
         audioRouter = AudioRouter.create(context, config)
     }
@@ -100,10 +105,10 @@ class AudioRouterInstrumentedTest {
     @Test
     fun start_detectsAvailableDevices() = runBlocking {
         audioRouter.start()
-        
+
         // Wait for device detection
         delay(300)
-        
+
         val devices = audioRouter.availableDevices.value
         assertTrue("Should detect at least one device", devices.isNotEmpty())
     }
@@ -112,7 +117,7 @@ class AudioRouterInstrumentedTest {
     fun start_detectsSpeakerphone() = runBlocking {
         audioRouter.start()
         delay(300)
-        
+
         val devices = audioRouter.availableDevices.value
         val hasSpeaker = devices.any { it is AudioDevice.Speakerphone }
         assertTrue("Should detect speakerphone", hasSpeaker)
@@ -122,7 +127,7 @@ class AudioRouterInstrumentedTest {
     fun start_selectsDevice() = runBlocking {
         audioRouter.start()
         delay(300)
-        
+
         // Should auto-select a device
         val selected = audioRouter.selectedDevice.value
         assertNotNull("Should have a selected device", selected)
@@ -133,19 +138,22 @@ class AudioRouterInstrumentedTest {
     @Test
     fun selectDevice_speakerphone_succeeds() = runBlocking {
         audioRouter.start()
-        delay(500)
-        
+        delay(200)
+
         // Verify speakerphone is in available devices first
         val devices = audioRouter.availableDevices.value
         val speakerInList = devices.firstOrNull { it is AudioDevice.Speakerphone }
         assertNotNull("Speakerphone should be in available devices", speakerInList)
-        
+
         // Select the speaker from the list (same instance)
         audioRouter.selectDevice(speakerInList!!)
         delay(200)
-        
+
         val selected = audioRouter.selectedDevice.value
-        assertTrue("Should select speakerphone, but was: ${selected?.name}", selected is AudioDevice.Speakerphone)
+        assertTrue(
+            "Should select speakerphone, but was: ${selected?.name}",
+            selected is AudioDevice.Speakerphone
+        )
         assertTrue("Should be manual selection", audioRouter.isManualSelection.value)
     }
 
@@ -153,15 +161,15 @@ class AudioRouterInstrumentedTest {
     fun selectDevice_earpiece_succeeds() = runBlocking {
         audioRouter.start()
         delay(300)
-        
+
         val devices = audioRouter.availableDevices.value
-        
+
         // Only test if earpiece is available
         if (devices.any { it is AudioDevice.Earpiece }) {
             val earpiece = AudioDevice.Earpiece()
             audioRouter.selectDevice(earpiece)
             delay(100)
-            
+
             val selected = audioRouter.selectedDevice.value
             assertTrue("Should select earpiece", selected is AudioDevice.Earpiece)
         }
@@ -171,20 +179,27 @@ class AudioRouterInstrumentedTest {
     fun clearManualSelection_resumesAutoSelection() = runBlocking {
         audioRouter.start()
         delay(500)
-        
+
         // Get speakerphone from available devices
-        val speaker = audioRouter.availableDevices.value.firstOrNull { it is AudioDevice.Speakerphone }
+        val speaker =
+            audioRouter.availableDevices.value.firstOrNull { it is AudioDevice.Speakerphone }
         assertNotNull("Speakerphone should be available", speaker)
-        
+
         // Manually select speakerphone
         audioRouter.selectDevice(speaker!!)
         delay(200)
-        assertTrue("Should be manual selection after selectDevice", audioRouter.isManualSelection.value)
-        
+        assertTrue(
+            "Should be manual selection after selectDevice",
+            audioRouter.isManualSelection.value
+        )
+
         // Clear manual selection
         audioRouter.clearManualSelection()
         delay(200)
-        assertFalse("Should not be manual selection after clear", audioRouter.isManualSelection.value)
+        assertFalse(
+            "Should not be manual selection after clear",
+            audioRouter.isManualSelection.value
+        )
     }
 
     // ==================== Audio Activation Tests ====================
@@ -195,7 +210,7 @@ class AudioRouterInstrumentedTest {
         delay(200)
         audioRouter.activate()
         delay(200)
-        
+
         // Audio mode should be set to communication
         assertEquals(AudioManager.MODE_IN_COMMUNICATION, audioManager.mode)
     }
@@ -206,10 +221,10 @@ class AudioRouterInstrumentedTest {
         delay(200)
         audioRouter.activate()
         delay(200)
-        
+
         audioRouter.deactivate()
         delay(200)
-        
+
         // Audio mode should be reset
         assertEquals(AudioManager.MODE_NORMAL, audioManager.mode)
     }
@@ -218,13 +233,13 @@ class AudioRouterInstrumentedTest {
     fun activate_withSpeakerphone_activatesSpeaker() = runBlocking {
         audioRouter.start()
         delay(300)
-        
+
         val speaker = AudioDevice.Speakerphone()
         audioRouter.selectDevice(speaker)
         delay(100)
         audioRouter.activate()
         delay(200)
-        
+
         // Verify state is activated
         assertEquals(RoutingState.ACTIVATED, audioRouter.routingState.value)
     }
@@ -235,24 +250,27 @@ class AudioRouterInstrumentedTest {
     fun setPreferredDeviceOrder_updatesOrder() = runBlocking {
         audioRouter.start()
         delay(500)
-        
+
         // First clear any manual selection
         audioRouter.clearManualSelection()
         delay(200)
-        
+
         val newOrder = listOf(
             AudioDevice.Speakerphone::class,
             AudioDevice.Earpiece::class,
             AudioDevice.WiredHeadset::class,
             AudioDevice.BluetoothHeadset::class
         )
-        
+
         audioRouter.setPreferredDeviceOrder(newOrder)
         delay(300)
-        
+
         // Without manual selection and no wired/bluetooth, should select speaker (highest in new order)
         val selected = audioRouter.selectedDevice.value
-        assertTrue("Should select speakerphone with new order, but was: ${selected?.name}", selected is AudioDevice.Speakerphone)
+        assertTrue(
+            "Should select speakerphone with new order, but was: ${selected?.name}",
+            selected is AudioDevice.Speakerphone
+        )
     }
 
     // ==================== StateFlow Tests ====================
@@ -260,10 +278,11 @@ class AudioRouterInstrumentedTest {
     @Test
     fun availableDevices_emitsOnChange() = runTest {
         audioRouter.start()
-        
-        withTimeout(2000) {
-            val devices = audioRouter.availableDevices.first { it.isNotEmpty() }
-            assertTrue(devices.isNotEmpty())
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(2000) {
+                val devices = audioRouter.availableDevices.first { it.isNotEmpty() }
+                assertTrue(devices.isNotEmpty())
+            }
         }
     }
 
@@ -271,9 +290,9 @@ class AudioRouterInstrumentedTest {
     fun routingState_emitsOnChange() = runTest {
         val initialState = audioRouter.routingState.value
         assertEquals(RoutingState.IDLE, initialState)
-        
+
         audioRouter.start()
-        
+
         withTimeout(2000) {
             val state = audioRouter.routingState.first { it == RoutingState.STARTED }
             assertEquals(RoutingState.STARTED, state)
@@ -285,7 +304,7 @@ class AudioRouterInstrumentedTest {
     @Test
     fun listener_receivesDeviceChanges() = runBlocking {
         var deviceChangedCalled = false
-        
+
         val listener = object : AudioRouterListener {
             override fun onAudioDevicesChanged(
                 devices: List<AudioDevice>,
@@ -299,11 +318,11 @@ class AudioRouterInstrumentedTest {
             override fun onRoutingStateChanged(state: RoutingState) {}
             override fun onPermissionMissing(permission: String) {}
         }
-        
+
         // Pass listener to start() to ensure it's set before initialization
         audioRouter.start(listener)
         delay(500)
-        
+
         assertTrue("Listener should receive device changes", deviceChangedCalled)
     }
 
@@ -311,25 +330,26 @@ class AudioRouterInstrumentedTest {
     fun listener_receivesStateChanges() = runBlocking {
         var stateChangedCalled = false
         var lastState: RoutingState? = null
-        
+
         val listener = object : AudioRouterListener {
             override fun onAudioDevicesChanged(
                 devices: List<AudioDevice>,
                 selectedDevice: AudioDevice?
-            ) {}
+            ) {
+            }
 
             override fun onRoutingStateChanged(state: RoutingState) {
                 stateChangedCalled = true
                 lastState = state
             }
-            
+
             override fun onPermissionMissing(permission: String) {}
         }
-        
+
         // Pass listener to start() to ensure it's set before initialization
         audioRouter.start(listener)
         delay(300)
-        
+
         assertTrue("Listener should receive state changes", stateChangedCalled)
         assertEquals(RoutingState.STARTED, lastState)
     }
@@ -342,7 +362,7 @@ class AudioRouterInstrumentedTest {
             audioRouter.start()
             delay(200)
             assertEquals(RoutingState.STARTED, audioRouter.routingState.value)
-            
+
             audioRouter.stop()
             delay(200)
             assertEquals(RoutingState.IDLE, audioRouter.routingState.value)
@@ -353,17 +373,17 @@ class AudioRouterInstrumentedTest {
     fun multipleActivateDeactivateCycles_workCorrectly() = runBlocking {
         audioRouter.start()
         delay(300)
-        
+
         repeat(3) {
             audioRouter.activate()
             delay(200)
             assertEquals(RoutingState.ACTIVATED, audioRouter.routingState.value)
-            
+
             audioRouter.deactivate()
             delay(200)
             assertEquals(RoutingState.STARTED, audioRouter.routingState.value)
         }
-        
+
         audioRouter.stop()
     }
 }

@@ -74,25 +74,10 @@ interface AudioRouter {
 
     /**
      * Stops listening for audio device changes.
-     * Automatically calls [deactivate] if currently activated.
+     * Automatically calls deactivate if currently activated.
      * Call this when audio routing is no longer needed.
      */
     fun stop()
-
-    /**
-     * Activates audio routing to the selected device.
-     * This acquires audio focus and starts routing audio.
-     * Call this when a call actually starts.
-     *
-     * @throws IllegalStateException if called when state is IDLE
-     */
-    fun activate()
-
-    /**
-     * Deactivates audio routing and releases audio focus.
-     * Call this when a call ends.
-     */
-    fun deactivate()
 
     /**
      * Manually selects an audio device for routing.
