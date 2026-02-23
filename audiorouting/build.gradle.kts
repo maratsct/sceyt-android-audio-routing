@@ -1,8 +1,17 @@
+import com.sceyt.buildsrc.Config
+import com.sceyt.buildsrc.configureMavenPublishing
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.library")
+    id("org.jetbrains.kotlin.android")
 }
+
+configureMavenPublishing(
+    artifactId = Config.artifactId,
+    version = Config.version,
+    description = Config.description,
+)
 
 android {
     namespace = "com.sceyt.audiorouting.lib"
@@ -37,11 +46,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-}
 
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_11)
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
     }
 }
 

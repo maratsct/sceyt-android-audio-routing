@@ -68,8 +68,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
 
@@ -198,47 +196,6 @@ class MelodicSoundPlayer {
 
     fun release() {
         stop()
-    }
-
-    @Suppress("SameParameterValue")
-    private fun generateNoteWithEnvelope(frequency: Double, durationMs: Int): ShortArray {
-        val numSamples = (sampleRate * durationMs / 1000.0).toInt()
-        val samples = ShortArray(numSamples)
-
-        val attackSamples = (numSamples * 0.1).toInt()
-        val decaySamples = (numSamples * 0.1).toInt()
-        val releaseSamples = (numSamples * 0.3).toInt()
-        val sustainSamples = numSamples - attackSamples - decaySamples - releaseSamples
-
-        for (i in 0 until numSamples) {
-            // Generate sine wave with harmonics for richer sound
-            val time = i.toDouble() / sampleRate
-            val fundamental = sin(2 * PI * frequency * time)
-            val harmonic2 = 0.5 * sin(2 * PI * frequency * 2 * time)
-            val harmonic3 = 0.25 * sin(2 * PI * frequency * 3 * time)
-            var sample = (fundamental + harmonic2 + harmonic3) / 1.75
-
-            // Apply ADSR envelope
-            val envelope = when {
-                i < attackSamples -> i.toDouble() / attackSamples // Attack
-                i < attackSamples + decaySamples -> {
-                    val decayProgress = (i - attackSamples).toDouble() / decaySamples
-                    1.0 - (0.3 * decayProgress) // Decay to 0.7
-                }
-
-                i < attackSamples + decaySamples + sustainSamples -> 0.7 // Sustain
-                else -> {
-                    val releaseProgress =
-                        (i - attackSamples - decaySamples - sustainSamples).toDouble() / releaseSamples
-                    0.7 * (1.0 - releaseProgress) // Release
-                }
-            }
-
-            sample *= envelope
-            samples[i] = (sample * Short.MAX_VALUE * 0.8).toInt().toShort()
-        }
-
-        return samples
     }
 }
 
