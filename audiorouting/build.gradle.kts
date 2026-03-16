@@ -55,13 +55,14 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.17.0")
+    //noinspection UseTomlInstead
+    implementation("androidx.core:core-ktx:1.18.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
     // Unit tests (run on JVM)
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-    testImplementation("org.mockito:mockito-core:5.21.0")
+    testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:6.2.3")
 
     // Instrumented tests (run on device/emulator)
@@ -70,6 +71,6 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test:rules:1.7.0")
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-    androidTestImplementation("org.mockito:mockito-android:5.21.0")
+    androidTestImplementation("org.mockito:mockito-android:5.23.0")
     androidTestImplementation("org.mockito.kotlin:mockito-kotlin:6.2.3")
 }
