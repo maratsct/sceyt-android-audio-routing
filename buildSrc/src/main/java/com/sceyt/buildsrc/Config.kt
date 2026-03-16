@@ -8,7 +8,7 @@ object Config {
     const val description = "Sceyt Audio Routing Android SDK"
     const val artifactId = "sceyt-audiorouting-android-sdk"
 
-    // const val version = "1.0.2"
+    const val version = "1.0.3"
     // const val version = "local"
-    const val version = "1.0.2-SNAPSHOT"
+    // const val version = "1.0.2-SNAPSHOT"
 }
